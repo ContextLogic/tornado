@@ -212,7 +212,7 @@ class IOStream(object):
                 self._read_until_close = False
                 self._run_callback(callback,
                                    self._consume(self._read_buffer_size))
-            if self._state is not None:
+            if self._state is not None and not self._conn_closed:
                 self.io_loop.remove_handler(self.socket.fileno())
             self.socket.close()
             self.socket = None
@@ -257,7 +257,8 @@ class IOStream(object):
                 self.io_loop.add_callback(self.close)
                 return
             if events & self.io_loop.CONN_CLOSED:
-                self.io_loop.remove_handler(self.socket.fileno())
+                if not self._conn_closed:
+                    self.io_loop.remove_handler(self.socket.fileno())
                 self._conn_closed = True
                 return
             state = self.io_loop.ERROR | self.io_loop.CONN_CLOSED
@@ -474,7 +475,9 @@ class IOStream(object):
             raise IOError("Stream is closed")
 
     def _maybe_add_error_listener(self):
-        if (self._state is None or self._conn_closed) and self._pending_callbacks == 0:
+        if self._conn_closed and self._pending_callbacks == 0:
+            self.close()
+        if self._state is None and self._pending_callbacks == 0:
             if self.socket is None:
                 cb = self._close_callback
                 if cb is not None:
@@ -504,7 +507,7 @@ class IOStream(object):
         (since the write callback is optional so we can have a
         fast-path write with no `_run_callback`)
         """
-        if self.socket is None:
+        if self.socket is None or self._conn_closed:
             # connection has been closed, so there can be no future events
             return
         if self._state is None:
