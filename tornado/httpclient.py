@@ -63,8 +63,8 @@ class HTTPClient(object):
         """Closes the HTTPClient, freeing any resources used."""
         if not self._closed:
             self._async_client.close()
-            self._io_loop.close()
-            self._closed = True
+#            self._io_loop.close()
+#            self._closed = True
 
     def fetch(self, request, **kwargs):
         """Executes a request, returning an `HTTPResponse`.
@@ -150,7 +150,12 @@ class AsyncHTTPClient(object):
         create and destroy http clients.  No other methods may be called
         on the AsyncHTTPClient after close().
         """
-        if self._async_clients().get(self.io_loop) is self:
+        client = None
+        try:
+            client = self._async_clients().get(self.io_loop)
+        except Exception:
+            pass
+        if client is self:
             del self._async_clients()[self.io_loop]
 
     def fetch(self, request, callback, **kwargs):
