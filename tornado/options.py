@@ -65,7 +65,7 @@ except ImportError:
 
 
 def define(name, default=None, type=None, help=None, metavar=None,
-           multiple=False, group=None):
+           multiple=False, group=None, hidden=False):
     """Defines a new command line option.
 
     If type is given (one of str, float, int, datetime, or timedelta)
@@ -106,10 +106,11 @@ def define(name, default=None, type=None, help=None, metavar=None,
         group_name = file_name
     options[name] = _Option(name, file_name=file_name, default=default,
                             type=type, help=help, metavar=metavar,
-                            multiple=multiple, group_name=group_name)
+                            multiple=multiple, group_name=group_name,
+                            hidden=hidden)
 
 
-def parse_command_line(args=None):
+def parse_command_line(args=None, usage=''):
     """Parses all options given on the command line.
 
     We return all command line arguments that are not options as a list.
@@ -137,8 +138,11 @@ def parse_command_line(args=None):
             else:
                 raise Error('Option %r requires a value' % name)
         option.parse(value)
+    if options.full_help:
+        print_help(show_hidden=True, usage=usage)
+        sys.exit(0)
     if options.help:
-        print_help()
+        print_help(show_hidden=False, usage=usage)
         sys.exit(0)
 
     # Set up log level and pretty console logging by default
@@ -158,17 +162,20 @@ def parse_config_file(path):
             options[name].set(config[name])
 
 
-def print_help(file=sys.stdout):
+def print_help(file=sys.stdout, show_hidden=False, usage=''):
     """Prints all the command line options to stdout."""
     print >> file, "Usage: %s [OPTIONS]" % sys.argv[0]
+    if usage:
+        print >> file, usage
     print >> file, ""
     print >> file, "Options:"
     by_group = {}
     for option in options.itervalues():
+        if not show_hidden and option.hidden: continue
         by_group.setdefault(option.group_name, []).append(option)
 
     for filename, o in sorted(by_group.items()):
-        if filename: print >> file, filename
+        if filename: print >> file, '\n', filename, '\n'
         o.sort(key=lambda option: option.name)
         for option in o:
             prefix = option.name
@@ -176,7 +183,6 @@ def print_help(file=sys.stdout):
                 prefix += "=" + option.metavar
             print >> file, "  --%-30s %s" % (prefix, option.help or "")
     print >> file
-
 
 class _Options(dict):
     """Our global program options, an dictionary with object-like access."""
@@ -194,7 +200,7 @@ class _Options(dict):
 
 class _Option(object):
     def __init__(self, name, default=None, type=str, help=None, metavar=None,
-                 multiple=False, file_name=None, group_name=None):
+                 multiple=False, file_name=None, group_name=None, hidden=False):
         if default is None and multiple:
             default = []
         self.name = name
@@ -204,6 +210,7 @@ class _Option(object):
         self.multiple = multiple
         self.file_name = file_name
         self.group_name = group_name
+        self.hidden = hidden
         self.default = default
         self._value = None
 
@@ -398,6 +405,7 @@ options = _Options.instance()
 
 # Default options
 define("help", type=bool, help="show this help information")
+define("full_help", type=bool, help="Show all the hidden flags.")
 define("logging", default="info",
        help=("Set the Python log level. If 'none', tornado won't touch the "
              "logging configuration."),
