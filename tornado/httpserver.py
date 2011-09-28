@@ -24,19 +24,16 @@ This module also defines the `HTTPRequest` class which is exposed via
 `tornado.web.RequestHandler.request`.
 """
 
-import errno
+import Cookie
 import logging
-import os
 import socket
 import time
 import urlparse
 
 from tornado.escape import utf8, native_str, parse_qs_bytes
 from tornado import httputil
-from tornado import ioloop
 from tornado import iostream
-from tornado import netutil
-from tornado import process
+from tornado.netutil import TCPServer
 from tornado import stack_context
 from tornado.util import b, bytes_type
 
@@ -45,14 +42,13 @@ try:
 except ImportError:
     ssl = None
 
-
-class HTTPServer(object):
+class HTTPServer(TCPServer):
     r"""A non-blocking, single-threaded HTTP server.
 
     A server is defined by a request callback that takes an HTTPRequest
     instance as an argument and writes a valid HTTP response with
-    request.write(). request.finish() finishes the request (but does not
-    necessarily close the connection in the case of HTTP/1.1 keep-alive
+    `HTTPRequest.write`. `HTTPRequest.finish` finishes the request (but does
+    not necessarily close the connection in the case of HTTP/1.1 keep-alive
     requests). A simple example server that echoes back the URI you
     requested::
 
@@ -69,25 +65,25 @@ class HTTPServer(object):
         http_server.listen(8888)
         ioloop.IOLoop.instance().start()
 
-    HTTPServer is a very basic connection handler. Beyond parsing the
+    `HTTPServer` is a very basic connection handler. Beyond parsing the
     HTTP request body and headers, the only HTTP semantics implemented
-    in HTTPServer is HTTP/1.1 keep-alive connections. We do not, however,
+    in `HTTPServer` is HTTP/1.1 keep-alive connections. We do not, however,
     implement chunked encoding, so the request callback must provide a
-    Content-Length header or implement chunked encoding for HTTP/1.1
+    ``Content-Length`` header or implement chunked encoding for HTTP/1.1
     requests for the server to run correctly for HTTP/1.1 clients. If
     the request handler is unable to do this, you can provide the
-    no_keep_alive argument to the HTTPServer constructor, which will
+    ``no_keep_alive`` argument to the `HTTPServer` constructor, which will
     ensure the connection is closed on every request no matter what HTTP
     version the client is using.
 
-    If xheaders is True, we support the X-Real-Ip and X-Scheme headers,
-    which override the remote IP and HTTP scheme for all requests. These
-    headers are useful when running Tornado behind a reverse proxy or
+    If ``xheaders`` is ``True``, we support the ``X-Real-Ip`` and ``X-Scheme``
+    headers, which override the remote IP and HTTP scheme for all requests.
+    These headers are useful when running Tornado behind a reverse proxy or
     load balancer.
 
-    HTTPServer can serve HTTPS (SSL) traffic with Python 2.6+ and OpenSSL.
+    `HTTPServer` can serve SSL traffic with Python 2.6+ and OpenSSL.
     To make this server serve SSL traffic, send the ssl_options dictionary
-    argument with the arguments required for the ssl.wrap_socket() method,
+    argument with the arguments required for the `ssl.wrap_socket` method,
     including "certfile" and "keyfile"::
 
        HTTPServer(applicaton, ssl_options={
@@ -95,29 +91,31 @@ class HTTPServer(object):
            "keyfile": os.path.join(data_dir, "mydomain.key"),
        })
 
-    HTTPServer initialization follows one of three patterns:
+    `HTTPServer` initialization follows one of three patterns (the
+    initialization methods are defined on `tornado.netutil.TCPServer`):
 
-    1. `listen`: simple single-process::
+    1. `~tornado.netutil.TCPServer.listen`: simple single-process::
 
             server = HTTPServer(app)
             server.listen(8888)
             IOLoop.instance().start()
 
        In many cases, `tornado.web.Application.listen` can be used to avoid
-       the need to explicitly create the ``HTTPServer``.
+       the need to explicitly create the `HTTPServer`.
 
-    2. `bind`/`start`: simple multi-process::
-   
+    2. `~tornado.netutil.TCPServer.bind`/`~tornado.netutil.TCPServer.start`: 
+       simple multi-process::
+
             server = HTTPServer(app)
             server.bind(8888)
             server.start(0)  # Forks multiple sub-processes
             IOLoop.instance().start()
 
-       When using this interface, an ``IOLoop`` must *not* be passed
-       to the ``HTTPServer`` constructor.  `start` will always start
-       the server on the default singleton ``IOLoop``.
+       When using this interface, an `IOLoop` must *not* be passed
+       to the `HTTPServer` constructor.  `start` will always start
+       the server on the default singleton `IOLoop`.
 
-    3. `add_sockets`: advanced multi-process::
+    3. `~tornado.netutil.TCPServer.add_sockets`: advanced multi-process::
 
             sockets = tornado.netutil.bind_sockets(8888)
             tornado.process.fork_processes(0)
@@ -127,147 +125,23 @@ class HTTPServer(object):
 
        The `add_sockets` interface is more complicated, but it can be
        used with `tornado.process.fork_processes` to give you more
-       flexibility in when the fork happens.  ``add_sockets`` can
+       flexibility in when the fork happens.  `add_sockets` can
        also be used in single-process servers if you want to create
-       your listening sockets in some way other than 
+       your listening sockets in some way other than
        `tornado.netutil.bind_sockets`.
+
     """
     def __init__(self, request_callback, no_keep_alive=False, io_loop=None,
-                 xheaders=False, ssl_options=None):
+                 xheaders=False, ssl_options=None, **kwargs):
         self.request_callback = request_callback
         self.no_keep_alive = no_keep_alive
-        self.io_loop = io_loop
         self.xheaders = xheaders
-        self.ssl_options = ssl_options
-        self._sockets = {}  # fd -> socket object
-        self._pending_sockets = []
-        self._started = False
+        TCPServer.__init__(self, io_loop=io_loop, ssl_options=ssl_options,
+                           **kwargs)
 
-    def listen(self, port, address=""):
-        """Starts accepting connections on the given port.
-
-        This method may be called more than once to listen on multiple ports.
-        ``listen`` takes effect immediately; it is not necessary to call
-        `HTTPServer.start` afterwards.  It is, however, necessary to start
-        the ``IOLoop``.
-        """
-        sockets = netutil.bind_sockets(port, address=address)
-        self.add_sockets(sockets)
-
-    def add_sockets(self, sockets):
-        """Makes this server start accepting connections on the given sockets.
-
-        The ``sockets`` parameter is a list of socket objects such as
-        those returned by `tornado.netutil.bind_sockets`.
-        ``add_sockets`` is typically used in combination with that
-        method and `tornado.process.fork_processes` to provide greater
-        control over the initialization of a multi-process server.
-        """
-        if self.io_loop is None:
-            self.io_loop = ioloop.IOLoop.instance()
-        for sock in sockets:
-            self._sockets[sock.fileno()] = sock
-            netutil.add_accept_handler(sock, self._handle_connection,
-                                       io_loop=self.io_loop)
-
-    def add_socket(self, socket):
-        """Singular version of `add_sockets`.  Takes a single socket object."""
-        self.add_sockets([socket])
-
-    def bind(self, port, address=None, family=socket.AF_UNSPEC, backlog=128):
-        """Binds this server to the given port on the given address.
-
-        To start the server, call start(). If you want to run this server
-        in a single process, you can call listen() as a shortcut to the
-        sequence of bind() and start() calls.
-
-        Address may be either an IP address or hostname.  If it's a hostname,
-        the server will listen on all IP addresses associated with the
-        name.  Address may be an empty string or None to listen on all
-        available interfaces.  Family may be set to either socket.AF_INET
-        or socket.AF_INET6 to restrict to ipv4 or ipv6 addresses, otherwise
-        both will be used if available.
-
-        The ``backlog`` argument has the same meaning as for 
-        ``socket.listen()``.
-
-        This method may be called multiple times prior to start() to listen
-        on multiple ports or interfaces.
-        """
-        sockets = netutil.bind_sockets(port, address=address,
-                                       family=family, backlog=backlog)
-        if self._started:
-            self.add_sockets(sockets)
-        else:
-            self._pending_sockets.extend(sockets)
-
-    def start(self, num_processes=1):
-        """Starts this server in the IOLoop.
-
-        By default, we run the server in this process and do not fork any
-        additional child process.
-
-        If num_processes is None or <= 0, we detect the number of cores
-        available on this machine and fork that number of child
-        processes. If num_processes is given and > 1, we fork that
-        specific number of sub-processes.
-
-        Since we use processes and not threads, there is no shared memory
-        between any server code.
-
-        Note that multiple processes are not compatible with the autoreload
-        module (or the debug=True option to tornado.web.Application).
-        When using multiple processes, no IOLoops can be created or
-        referenced until after the call to HTTPServer.start(n).
-        """
-        assert not self._started
-        self._started = True
-        if num_processes != 1:
-            process.fork_processes(num_processes)
-        sockets = self._pending_sockets
-        self._pending_sockets = []
-        self.add_sockets(sockets)
-
-    def stop(self):
-        """Stops listening for new connections.
-
-        Requests currently in progress may still continue after the
-        server is stopped.
-        """
-        for fd, sock in self._sockets.iteritems():
-            self.io_loop.remove_handler(fd)
-            sock.close()
-
-    def _handle_connection(self, connection, address):
-        if self.ssl_options is not None:
-            assert ssl, "Python 2.6+ and OpenSSL required for SSL"
-            try:
-                connection = ssl.wrap_socket(connection,
-                                             server_side=True,
-                                             do_handshake_on_connect=False,
-                                             **self.ssl_options)
-            except ssl.SSLError, err:
-                if err.args[0] == ssl.SSL_ERROR_EOF:
-                    return connection.close()
-                else:
-                    raise
-            except socket.error, err:
-                if err.args[0] == errno.ECONNABORTED:
-                    return connection.close()
-                else:
-                    raise
-        try:
-            if self.ssl_options is not None:
-                stream = iostream.SSLIOStream(connection, io_loop=self.io_loop)
-            else:
-                stream = iostream.IOStream(connection, io_loop=self.io_loop)
-            if connection.family not in (socket.AF_INET, socket.AF_INET6):
-                # Unix (or other) socket; fake the remote address
-                address = ('0.0.0.0', 0)
-            HTTPConnection(stream, address, self.request_callback,
-                           self.no_keep_alive, self.xheaders)
-        except Exception:
-            logging.error("Error in connection callback", exc_info=True)
+    def handle_stream(self, stream, address):
+        HTTPConnection(stream, address, self.request_callback,
+                       self.no_keep_alive, self.xheaders)
 
 class _BadRequestException(Exception):
     """Exception class for malformed HTTP requests."""
@@ -282,6 +156,9 @@ class HTTPConnection(object):
     def __init__(self, stream, address, request_callback, no_keep_alive=False,
                  xheaders=False):
         self.stream = stream
+        if self.stream.socket.family not in (socket.AF_INET, socket.AF_INET6):
+            # Unix (or other) socket; fake the remote address
+            address = ('0.0.0.0', 0)
         self.address = address
         self.request_callback = request_callback
         self.no_keep_alive = no_keep_alive
@@ -357,7 +234,7 @@ class HTTPConnection(object):
                 if content_length > self.stream.max_buffer_size:
                     raise _BadRequestException("Content-Length too long")
                 if headers.get("Expect") == "100-continue":
-                    self.stream.write("HTTP/1.1 100 (Continue)\r\n\r\n")
+                    self.stream.write(b("HTTP/1.1 100 (Continue)\r\n\r\n"))
                 self.stream.read_bytes(content_length, self._on_request_body)
                 return
 
@@ -397,6 +274,8 @@ class HTTPConnection(object):
 class HTTPRequest(object):
     """A single HTTP request.
 
+    All attributes are type `str` unless otherwise noted.
+
     .. attribute:: method
 
        HTTP request method, e.g. "GET" or "POST"
@@ -425,7 +304,7 @@ class HTTPRequest(object):
 
     .. attribute:: body
 
-       Request body, if present.
+       Request body, if present, as a byte string.
 
     .. attribute:: remote_ip
 
@@ -447,15 +326,15 @@ class HTTPRequest(object):
 
        GET/POST arguments are available in the arguments property, which
        maps arguments names to lists of values (to support multiple values
-       for individual names). Names and values are both unicode always.
+       for individual names). Names are of type `str`, while arguments
+       are byte strings.  Note that this is different from 
+       `RequestHandler.get_argument`, which returns argument values as 
+       unicode strings.
 
     .. attribute:: files
 
        File uploads are available in the files property, which maps file
-       names to list of files. Each file is a dictionary of the form
-       {"filename":..., "content_type":..., "body":...}. The content_type
-       comes from the provided HTTP header and should not be trusted
-       outright given that it can be easily forged.
+       names to lists of :class:`HTTPFile`.
 
     .. attribute:: connection
 
@@ -508,6 +387,19 @@ class HTTPRequest(object):
     def supports_http_1_1(self):
         """Returns True if this request supports HTTP/1.1 semantics"""
         return self.version == "HTTP/1.1"
+
+    @property
+    def cookies(self):
+        """A dictionary of Cookie.Morsel objects."""
+        if not hasattr(self, "_cookies"):
+            self._cookies = Cookie.SimpleCookie()
+            if "Cookie" in self.headers:
+                try:
+                    self._cookies.load(
+                        native_str(self.headers["Cookie"]))
+                except Exception:
+                    self._cookies = None
+        return self._cookies
 
     def write(self, chunk, callback=None):
         """Writes the given chunk to the response stream."""

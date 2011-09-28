@@ -327,7 +327,7 @@ class Error(Exception):
 
 def enable_pretty_logging():
     """Turns on formatted logging output as configured.
-    
+
     This is called automatically by `parse_command_line`.
     """
     root_logger = logging.getLogger()
@@ -365,7 +365,7 @@ class _LogFormatter(logging.Formatter):
             # Most methods return bytes, but only accept strings.
             # The explict calls to unicode() below are harmless in python2,
             # but will do the right conversion in python3.
-            fg_color = unicode(curses.tigetstr("setaf") or 
+            fg_color = unicode(curses.tigetstr("setaf") or
                                curses.tigetstr("setf") or "", "ascii")
             self._colors = {
                 logging.DEBUG: unicode(curses.tparm(fg_color, 4), # Blue

@@ -4,6 +4,8 @@ from __future__ import with_statement
 
 import base64
 import binascii
+from contextlib import closing
+import functools
 
 from tornado.escape import utf8
 from tornado.httpclient import AsyncHTTPClient
@@ -74,6 +76,7 @@ class HTTPClientCommonTestCase(AsyncHTTPTestCase, LogTrapTestCase):
         self.assertEqual(response.code, 200)
         self.assertEqual(response.headers["Content-Type"], "text/plain")
         self.assertEqual(response.body, b("Hello world!"))
+        self.assertEqual(int(response.request_time), 0)
 
         response = self.fetch("/hello?name=Ben")
         self.assertEqual(response.body, b("Hello Ben!"))
@@ -108,11 +111,9 @@ class HTTPClientCommonTestCase(AsyncHTTPTestCase, LogTrapTestCase):
         # over several ioloop iterations, but the connection is already closed.
         port = get_unused_port()
         (sock,) = netutil.bind_sockets(port, address="127.0.0.1")
-        def accept_callback(conn, address):
-            # fake an HTTP server using chunked encoding where the final chunks
-            # and connection close all happen at once
-            stream = IOStream(conn, io_loop=self.io_loop)
-            stream.write(b("""\
+        with closing(sock):
+            def write_response(stream, request_data):
+                stream.write(b("""\
 HTTP/1.1 200 OK
 Transfer-Encoding: chunked
 
@@ -123,11 +124,17 @@ Transfer-Encoding: chunked
 0
 
 """).replace(b("\n"), b("\r\n")), callback=stream.close)
-        netutil.add_accept_handler(sock, accept_callback, self.io_loop)
-        self.http_client.fetch("http://127.0.0.1:%d/" % port, self.stop)
-        resp = self.wait()
-        resp.rethrow()
-        self.assertEqual(resp.body, b("12"))
+            def accept_callback(conn, address):
+                # fake an HTTP server using chunked encoding where the final chunks
+                # and connection close all happen at once
+                stream = IOStream(conn, io_loop=self.io_loop)
+                stream.read_until(b("\r\n\r\n"),
+                                  functools.partial(write_response, stream))
+            netutil.add_accept_handler(sock, accept_callback, self.io_loop)
+            self.http_client.fetch("http://127.0.0.1:%d/" % port, self.stop)
+            resp = self.wait()
+            resp.rethrow()
+            self.assertEqual(resp.body, b("12"))
         
 
     def test_basic_auth(self):

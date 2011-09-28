@@ -20,7 +20,7 @@ import logging
 import urllib
 import re
 
-from tornado.util import b
+from tornado.util import b, ObjectDict
 
 class HTTPHeaders(dict):
     """A dictionary that maintains Http-Header-Case for all keys.
@@ -132,6 +132,10 @@ class HTTPHeaders(dict):
         dict.__delitem__(self, norm_name)
         del self._as_list[norm_name]
 
+    def __contains__(self, name):
+        norm_name = HTTPHeaders._normalize_name(name)
+        return dict.__contains__(self, norm_name)
+
     def get(self, name, default=None):
         return dict.get(self, HTTPHeaders._normalize_name(name), default)
 
@@ -173,6 +177,19 @@ def url_concat(url, args):
         url += '&' if ('?' in url) else '?'
     return url + urllib.urlencode(args)
 
+
+class HTTPFile(ObjectDict):
+    """Represents an HTTP file. For backwards compatibility, its instance
+    attributes are also accessible as dictionary keys.
+
+    :ivar filename:
+    :ivar body:
+    :ivar content_type: The content_type comes from the provided HTTP header
+        and should not be trusted outright given that it can be easily forged.
+    """
+    pass
+
+
 def parse_multipart_form_data(boundary, data, arguments, files):
     """Parses a multipart/form-data body.
 
@@ -211,7 +228,7 @@ def parse_multipart_form_data(boundary, data, arguments, files):
         name = disp_params["name"]
         if disp_params.get("filename"):
             ctype = headers.get("Content-Type", "application/unknown")
-            files.setdefault(name, []).append(dict(
+            files.setdefault(name, []).append(HTTPFile(
                 filename=disp_params["filename"], body=value,
                 content_type=ctype))
         else:

@@ -4,7 +4,6 @@ from __future__ import with_statement
 from tornado.escape import utf8, _unicode, native_str
 from tornado.httpclient import HTTPRequest, HTTPResponse, HTTPError, AsyncHTTPClient, main
 from tornado.httputil import HTTPHeaders
-from tornado.ioloop import IOLoop
 from tornado.iostream import IOStream, SSLIOStream
 from tornado import stack_context
 from tornado.util import b
@@ -54,7 +53,7 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
 
     Some features found in the curl-based AsyncHTTPClient are not yet
     supported.  In particular, proxies are not supported, connections
-    are not reused, and callers cannot select the network interface to be 
+    are not reused, and callers cannot select the network interface to be
     used.
 
     Python 2.6 or higher is required for HTTPS support.  Users of Python 2.5
@@ -197,7 +196,7 @@ class _HTTPConnection(object):
                                        max_buffer_size=max_buffer_size)
             timeout = min(request.connect_timeout, request.request_timeout)
             if timeout:
-                self._connect_timeout = self.io_loop.add_timeout(
+                self._timeout = self.io_loop.add_timeout(
                     self.start_time + timeout,
                     self._on_timeout)
             self.stream.set_close_callback(self._on_close)
@@ -207,12 +206,13 @@ class _HTTPConnection(object):
     def _on_timeout(self):
         self._timeout = None
         self._run_callback(HTTPResponse(self.request, 599,
+                                        request_time=time.time() - self.start_time,
                                         error=HTTPError(599, "Timeout")))
         self.stream.close()
 
     def _on_connect(self, parsed):
         if self._timeout is not None:
-            self.io_loop.remove_callback(self._timeout)
+            self.io_loop.remove_timeout(self._timeout)
             self._timeout = None
         if self.request.request_timeout:
             self._timeout = self.io_loop.add_timeout(
@@ -289,12 +289,15 @@ class _HTTPConnection(object):
         try:
             yield
         except Exception, e:
-            logger.warning("uncaught exception", exc_info=True)
-            self._run_callback(HTTPResponse(self.request, 599, error=e))
+            logging.warning("uncaught exception", exc_info=True)
+            self._run_callback(HTTPResponse(self.request, 599, error=e,
+                                request_time=time.time() - self.start_time,
+                                ))
 
     def _on_close(self):
         self._run_callback(HTTPResponse(
                 self.request, 599,
+                request_time=time.time() - self.start_time,
                 error=HTTPError(599, "Connection closed")))
 
     def _on_headers(self, data):
@@ -322,7 +325,7 @@ class _HTTPConnection(object):
                 # use them but if they differ it's an error.
                 pieces = re.split(r',\s*', self.headers["Content-Length"])
                 if any(i != pieces[0] for i in pieces):
-                    raise ValueError("Multiple unequal Content-Lengths: %r" % 
+                    raise ValueError("Multiple unequal Content-Lengths: %r" %
                                      self.headers["Content-Length"])
                 self.headers["Content-Length"] = pieces[0]
             self.stream.read_bytes(int(self.headers["Content-Length"]),
@@ -363,6 +366,7 @@ class _HTTPConnection(object):
             return
         response = HTTPResponse(original_request,
                                 self.code, headers=self.headers,
+                                request_time=time.time() - self.start_time,
                                 buffer=buffer,
                                 effective_url=self.request.url)
         self._run_callback(response)

@@ -1,3 +1,4 @@
+from tornado import netutil
 from tornado.iostream import IOStream
 from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase, get_unused_port
 from tornado.util import b
@@ -11,6 +12,27 @@ class HelloHandler(RequestHandler):
 class TestIOStream(AsyncHTTPTestCase, LogTrapTestCase):
     def get_app(self):
         return Application([('/', HelloHandler)])
+
+    def make_iostream_pair(self):
+        port = get_unused_port()
+        [listener] = netutil.bind_sockets(port, '127.0.0.1',
+                                          family=socket.AF_INET)
+        streams = [None, None]
+        def accept_callback(connection, address):
+            streams[0] = IOStream(connection, io_loop=self.io_loop)
+            self.stop()
+        def connect_callback():
+            streams[1] = client_stream
+            self.stop()
+        netutil.add_accept_handler(listener, accept_callback,
+                                   io_loop=self.io_loop)
+        client_stream = IOStream(socket.socket(), io_loop=self.io_loop)
+        client_stream.connect(('127.0.0.1', port),
+                              callback=connect_callback)
+        self.wait(condition=lambda: all(streams))
+        self.io_loop.remove_handler(listener.fileno())
+        listener.close()
+        return streams
 
     def test_read_zero_bytes(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -67,3 +89,74 @@ class TestIOStream(AsyncHTTPTestCase, LogTrapTestCase):
         data = self.wait()
         self.assertTrue(data.startswith(b("HTTP/1.0 200")))
         self.assertTrue(data.endswith(b("Hello")))
+
+    def test_streaming_callback(self):
+        server, client = self.make_iostream_pair()
+        try:
+            chunks = []
+            final_called = []
+            def streaming_callback(data):
+                chunks.append(data)
+                self.stop()
+            def final_callback(data):
+                assert not data
+                final_called.append(True)
+                self.stop()
+            server.read_bytes(6, callback=final_callback,
+                              streaming_callback=streaming_callback)
+            client.write(b("1234"))
+            self.wait(condition=lambda: chunks)
+            client.write(b("5678"))
+            self.wait(condition=lambda: final_called)
+            self.assertEqual(chunks, [b("1234"), b("56")])
+
+            # the rest of the last chunk is still in the buffer
+            server.read_bytes(2, callback=self.stop)
+            data = self.wait()
+            self.assertEqual(data, b("78"))
+        finally:
+            server.close()
+            client.close()
+
+    def test_streaming_until_close(self):
+        server, client = self.make_iostream_pair()
+        try:
+            chunks = []
+            def callback(data):
+                chunks.append(data)
+                self.stop()
+            client.read_until_close(callback=callback,
+                                    streaming_callback=callback)
+            server.write(b("1234"))
+            self.wait()
+            server.write(b("5678"))
+            self.wait()
+            server.close()
+            self.wait()
+            self.assertEqual(chunks, [b("1234"), b("5678"), b("")])
+        finally:
+            server.close()
+            client.close()
+
+    def test_delayed_close_callback(self):
+        # The scenario:  Server closes the connection while there is a pending
+        # read that can be served out of buffered data.  The client does not
+        # run the close_callback as soon as it detects the close, but rather
+        # defers it until after the buffered read has finished.
+        server, client = self.make_iostream_pair()
+        try:
+            client.set_close_callback(self.stop)
+            server.write(b("12"))
+            chunks = []
+            def callback1(data):
+                chunks.append(data)
+                client.read_bytes(1, callback2)
+                server.close()
+            def callback2(data):
+                chunks.append(data)
+            client.read_bytes(1, callback1)
+            self.wait()  # stopped by close_callback
+            self.assertEqual(chunks, [b("1"), b("2")])
+        finally:
+            server.close()
+            client.close()

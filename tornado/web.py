@@ -82,7 +82,7 @@ from tornado import locale
 from tornado import stack_context
 from tornado import template
 from tornado.escape import utf8, _unicode
-from tornado.util import b, bytes_type, import_object
+from tornado.util import b, bytes_type, import_object, ObjectDict
 
 try:
     from io import BytesIO  # python 3
@@ -105,14 +105,14 @@ class RequestHandler(object):
         self._finished = False
         self._auto_finish = True
         self._transforms = None  # will be set in _execute
-        self.ui = _O((n, self._ui_method(m)) for n, m in
+        self.ui = ObjectDict((n, self._ui_method(m)) for n, m in
                      application.ui_methods.iteritems())
         # UIModules are available as both `modules` and `_modules` in the
         # template namespace.  Historically only `modules` was available
         # but could be clobbered by user additions to the namespace.
         # The template {% module %} directive looks in `_modules` to avoid
         # possible conflicts.
-        self.ui["_modules"] = _O((n, self._ui_module(n, m)) for n, m in
+        self.ui["_modules"] = ObjectDict((n, self._ui_module(n, m)) for n, m in
                                  application.ui_modules.iteritems())
         self.ui["modules"] = self.ui["_modules"]
         self.clear()
@@ -318,21 +318,12 @@ class RequestHandler(object):
 
     @property
     def cookies(self):
-        """A dictionary of Cookie.Morsel objects."""
-        if not hasattr(self, "_cookies"):
-            self._cookies = Cookie.SimpleCookie()
-            if "Cookie" in self.request.headers:
-                try:
-                    self._cookies.load(
-                        escape.native_str(self.request.headers["Cookie"]))
-                except Exception:
-                    self.clear_all_cookies()
-        return self._cookies
+        return self.request.cookies
 
     def get_cookie(self, name, default=None):
         """Gets the value of the cookie with the given name, else default."""
-        if name in self.cookies:
-            return self.cookies[name].value
+        if name in self.request.cookies:
+            return self.request.cookies[name].value
         return default
 
     def set_cookie(self, name, value, domain=None, expires=None, path="/",
@@ -367,6 +358,7 @@ class RequestHandler(object):
         if path:
             new_cookie[name]["path"] = path
         for k, v in kwargs.iteritems():
+            if k == 'max_age': k = 'max-age'
             new_cookie[name][k] = v
 
     def clear_cookie(self, name, path="/", domain=None):
@@ -377,7 +369,7 @@ class RequestHandler(object):
 
     def clear_all_cookies(self):
         """Deletes all the cookies the user sent with this request."""
-        for name in self.cookies.iterkeys():
+        for name in self.request.cookies.iterkeys():
             self.clear_cookie(name)
 
     def set_secure_cookie(self, name, value, expires_days=30, **kwargs):
@@ -403,47 +395,16 @@ class RequestHandler(object):
         method for non-cookie uses.  To decode a value not stored
         as a cookie use the optional value argument to get_secure_cookie.
         """
-        timestamp = utf8(str(int(time.time())))
-        value = base64.b64encode(utf8(value))
-        signature = self._cookie_signature(name, value, timestamp)
-        value = b("|").join([value, timestamp, signature])
-        return value
+        self.require_setting("cookie_secret", "secure cookies")
+        return create_signed_value(self.application.settings["cookie_secret"],
+                                   name, value)
 
     def get_secure_cookie(self, name, value=None, max_age_days=31):
         """Returns the given signed cookie if it validates, or None."""
-        if value is None: value = self.get_cookie(name)
-        if not value: return None
-        parts = utf8(value).split(b("|"))
-        if len(parts) != 3: return None
-        signature = self._cookie_signature(name, parts[0], parts[1])
-        if not _time_independent_equals(parts[2], signature):
-            logging.warning("Invalid cookie signature %r", value)
-            return None
-        timestamp = int(parts[1])
-        if timestamp < time.time() - max_age_days * 86400:
-            logging.warning("Expired cookie %r", value)
-            return None
-        if timestamp > time.time() + 31 * 86400:
-            # _cookie_signature does not hash a delimiter between the
-            # parts of the cookie, so an attacker could transfer trailing
-            # digits from the payload to the timestamp without altering the
-            # signature.  For backwards compatibility, sanity-check timestamp
-            # here instead of modifying _cookie_signature.
-            logging.warning("Cookie timestamp in future; possible tampering %r", value)
-            return None
-        if parts[1].startswith(b("0")):
-            logging.warning("Tampered cookie %r", value)
-        try:
-            return base64.b64decode(parts[0])
-        except Exception:
-            return None
-
-    def _cookie_signature(self, *parts):
         self.require_setting("cookie_secret", "secure cookies")
-        hash = hmac.new(utf8(self.application.settings["cookie_secret"]),
-                        digestmod=hashlib.sha1)
-        for part in parts: hash.update(utf8(part))
-        return utf8(hash.hexdigest())
+        if value is None: value = self.get_cookie(name)
+        return decode_signed_value(self.application.settings["cookie_secret"],
+                                   name, value, max_age_days=max_age_days)
 
     def redirect(self, url, permanent=False):
         """Sends a redirect to the given (optionally relative) URL."""
@@ -1199,12 +1160,12 @@ class Application(object):
                                              "/static/")
             static_handler_class = settings.get("static_handler_class",
                                                 StaticFileHandler)
-            handlers = [
-                (re.escape(static_url_prefix) + r"(.*)", static_handler_class,
-                 dict(path=path)),
-                (r"/(favicon\.ico)", static_handler_class, dict(path=path)),
-                (r"/(robots\.txt)", static_handler_class, dict(path=path)),
-            ] + handlers
+            static_handler_args = settings.get("static_handler_args", {})
+            static_handler_args['path'] = path
+            for pattern in [re.escape(static_url_prefix) + r"(.*)",
+                            r"/(favicon\.ico)", r"/(robots\.txt)"]:
+                handlers.insert(0, (pattern, static_handler_class,
+                                    static_handler_args))
         if handlers: self.add_handlers(".*$", handlers)
 
         # Automatically reload modified modules
@@ -1619,7 +1580,7 @@ class GZipContentEncoding(OutputTransform):
     See http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
     """
     CONTENT_TYPES = set([
-        "text/plain", "text/html", "text/css", "text/xml",
+        "text/plain", "text/html", "text/css", "text/xml", "application/javascript", 
         "application/x-javascript", "application/xml", "application/atom+xml",
         "text/javascript", "application/json", "application/xhtml+xml"])
     MIN_LENGTH = 5
@@ -1912,14 +1873,41 @@ def _time_independent_equals(a, b):
             result |= ord(x) ^ ord(y)
     return result == 0
 
+def create_signed_value(secret, name, value):
+    timestamp = utf8(str(int(time.time())))
+    value = base64.b64encode(utf8(value))
+    signature = _create_signature(secret, name, value, timestamp)
+    value = b("|").join([value, timestamp, signature])
+    return value
 
-class _O(dict):
-    """Makes a dictionary behave like an object."""
-    def __getattr__(self, name):
-        try:
-            return self[name]
-        except KeyError:
-            raise AttributeError(name)
+def decode_signed_value(secret, name, value, max_age_days=31):
+    if not value: return None
+    parts = utf8(value).split(b("|"))
+    if len(parts) != 3: return None
+    signature = _create_signature(secret, name, parts[0], parts[1])
+    if not _time_independent_equals(parts[2], signature):
+        logging.warning("Invalid cookie signature %r", value)
+        return None
+    timestamp = int(parts[1])
+    if timestamp < time.time() - max_age_days * 86400:
+        logging.warning("Expired cookie %r", value)
+        return None
+    if timestamp > time.time() + 31 * 86400:
+        # _cookie_signature does not hash a delimiter between the
+        # parts of the cookie, so an attacker could transfer trailing
+        # digits from the payload to the timestamp without altering the
+        # signature.  For backwards compatibility, sanity-check timestamp
+        # here instead of modifying _cookie_signature.
+        logging.warning("Cookie timestamp in future; possible tampering %r", value)
+        return None
+    if parts[1].startswith(b("0")):
+        logging.warning("Tampered cookie %r", value)
+    try:
+        return base64.b64decode(parts[0])
+    except Exception:
+        return None
 
-    def __setattr__(self, name, value):
-        self[name] = value
+def _create_signature(secret, *parts):
+    hash = hmac.new(utf8(secret), digestmod=hashlib.sha1)
+    for part in parts: hash.update(utf8(part))
+    return utf8(hash.hexdigest())
