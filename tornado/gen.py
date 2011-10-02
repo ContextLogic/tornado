@@ -118,19 +118,6 @@ class YieldPoint(object):
         """
         raise NotImplementedError()
 
-class Return(YieldPoint):
-    """Wrapper for a value to be returned from a function using
-    `tornado.gen.engine`.
-    """
-
-    def __init__(self, retval):
-        """Takes a value to be returned from the function using the generator"""
-
-        self.retval = retval
-
-    def is_ready(self):
-        return True
-
 class Callback(YieldPoint):
     """Returns a callable object that will allow a matching `Wait` to proceed.
 
@@ -326,17 +313,15 @@ class Runner(object):
                     self.finished = True
                     raise
 
-                # if we were yielded a Return, stop running & return
-                # with that value
-                if isinstance(yielded, Return):
-                    self.running = False
-                    return yielded.retval
-
                 if isinstance(yielded, list):
                     yielded = Multi(yielded)
                 if isinstance(yielded, YieldPoint):
                     self.yield_point = yielded
-                    self.yield_point.start(self)
+
+                    try:
+                        self.yield_point.start(self)
+                    except:
+                        self.exc_info = sys.exc_info()
                 else:
                     self.exc_info = (BadYieldError("yielded unknown object %r" % yielded),)
         finally:
