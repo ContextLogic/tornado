@@ -191,7 +191,7 @@ class RequestHandler(object):
         """Resets all headers and content for this response."""
         # The performance cost of tornado.httputil.HTTPHeaders is significant
         # (slowing down a benchmark with a trivial handler by more than 10%),
-        # and its case-normalization is not generally necessary for 
+        # and its case-normalization is not generally necessary for
         # headers we generate on the server side, so use a plain dict
         # and list instead.
         self._headers = {
@@ -322,6 +322,8 @@ class RequestHandler(object):
 
     def get_cookie(self, name, default=None):
         """Gets the value of the cookie with the given name, else default."""
+        if not self.request or not self.request.cookies:
+            return default
         if name in self.request.cookies:
             return self.request.cookies[name].value
         return default
@@ -571,7 +573,7 @@ class RequestHandler(object):
 
     def flush(self, include_footers=False, callback=None):
         """Flushes the current output buffer to the network.
-        
+
         The ``callback`` argument, if given, can be used for flow control:
         it will be run when all flushed data has been written to the socket.
         Note that only one flush callback can be outstanding at a time;
@@ -704,7 +706,7 @@ class RequestHandler(object):
                 self.write(line)
             self.finish()
         else:
-            self.finish("<html><title>%(code)d: %(message)s</title>" 
+            self.finish("<html><title>%(code)d: %(message)s</title>"
                         "<body>%(code)d: %(message)s</body></html>" % {
                     "code": status_code,
                     "message": httplib.responses[status_code],
@@ -961,7 +963,7 @@ class RequestHandler(object):
         lines = [utf8(self.request.version + " " +
                       str(self._status_code) +
                       " " + httplib.responses[self._status_code])]
-        lines.extend([(utf8(n) + b(": ") + utf8(v)) for n, v in 
+        lines.extend([(utf8(n) + b(": ") + utf8(v)) for n, v in
                       itertools.chain(self._headers.iteritems(), self._list_headers)])
         for cookie_dict in getattr(self, "_new_cookies", []):
             for cookie in cookie_dict.values():
@@ -1512,7 +1514,7 @@ class StaticFileHandler(RequestHandler):
 
         This method may be overridden in subclasses (but note that it is
         a class method rather than an instance method).
-        
+
         ``settings`` is the `Application.settings` dictionary.  ``path``
         is the static path being requested.  The url returned should be
         relative to the current host.
@@ -1580,7 +1582,7 @@ class GZipContentEncoding(OutputTransform):
     See http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
     """
     CONTENT_TYPES = set([
-        "text/plain", "text/html", "text/css", "text/xml", "application/javascript", 
+        "text/plain", "text/html", "text/css", "text/xml", "application/javascript",
         "application/x-javascript", "application/xml", "application/atom+xml",
         "text/javascript", "application/json", "application/xhtml+xml"])
     MIN_LENGTH = 5
@@ -1734,7 +1736,7 @@ class TemplateModule(UIModule):
     inside the template and give it keyword arguments corresponding to
     the methods on UIModule: {{ set_resources(js_files=static_url("my.js")) }}
     Note that these resources are output once per template file, not once
-    per instantiation of the template, so they must not depend on 
+    per instantiation of the template, so they must not depend on
     any arguments to the template.
     """
     def __init__(self, handler):
