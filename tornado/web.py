@@ -1158,13 +1158,18 @@ class Application(object):
         if self.settings.get("static_path"):
             path = self.settings["static_path"]
             handlers = list(handlers or [])
-            static_url_prefix = settings.get("static_url_prefix",
-                                             "/static/")
             static_handler_class = settings.get("static_handler_class",
                                                 StaticFileHandler)
             static_handler_args = settings.get("static_handler_args", {})
             static_handler_args['path'] = path
-            for pattern in [re.escape(static_url_prefix) + r"(.*)",
+
+            # HACK [adam Sept/21/12]: static_url_prefix gets a bit overloaded
+            #      here where it's used both to reference file locations on disk
+            #      and to determinte the output URL (Tornado is assuming a 1:1
+            #      mapping there); since static.wishwall.me is inside static/,
+            #      the disk & URL locations are different. so, hacking this to
+            #      hardcode /static/ in here.
+            for pattern in [re.escape("/static/") + r"(.*)",
                             r"/(favicon\.ico)", r"/(robots\.txt)"]:
                 handlers.insert(0, (pattern, static_handler_class,
                                     static_handler_args))
@@ -1530,10 +1535,12 @@ class StaticFileHandler(RequestHandler):
                 logging.error("Could not open static file %r", path)
                 hashes[abs_path] = None
         static_url_prefix = settings.get('static_url_prefix', '/static/')
+        global_cache_bust = settings.get('static_cache_bust', '')
         if hashes.get(abs_path):
-            return static_url_prefix + path + "?v=" + hashes[abs_path][:5]
+            return static_url_prefix + path + "?v=" + hashes[abs_path][:5] + \
+                    global_cache_bust
         else:
-            return static_url_prefix + path
+            return static_url_prefix + path + global_cache_bust
 
 
 class FallbackHandler(RequestHandler):
