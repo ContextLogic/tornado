@@ -77,7 +77,7 @@ class IOStream(object):
 
     """
     def __init__(self, socket, io_loop=None, max_buffer_size=104857600,
-                 read_chunk_size=4096, priority=None):
+                 read_chunk_size=4096, priority=0):
         self.socket = socket
         self.socket.setblocking(False)
         self.io_loop = io_loop or ioloop.IOLoop.instance()
