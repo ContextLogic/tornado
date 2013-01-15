@@ -178,18 +178,18 @@ class IOLoop(object):
         self._waker.close()
         self._impl.close()
 
-    def add_handler(self, fd, handler, events, priority=None):
+    def add_handler(self, fd, handler, events, priority=0):
         """Registers the given handler to receive the given events for fd."""
         self._handlers[fd] = stack_context.wrap(handler)
         kwargs = self._get_poll_kwargs(priority)
         self._impl.register(fd, events | self.ERROR, **kwargs)
 
-    def update_handler(self, fd, events, priority=None):
+    def update_handler(self, fd, events, priority=0):
         """Changes the events we listen for fd."""
         kwargs = self._get_poll_kwargs(priority)
         self._impl.modify(fd, events | self.ERROR, **kwargs)
 
-    def remove_handler(self, fd, priority=None):
+    def remove_handler(self, fd, priority=0):
         """Stop listening for events on fd."""
         self._handlers.pop(fd, None)
         self._events.pop(fd, None)
