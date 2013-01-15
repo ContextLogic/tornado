@@ -38,6 +38,7 @@ import thread
 import threading
 import time
 import traceback
+import ordereddict
 
 from tornado import stack_context
 
@@ -110,7 +111,7 @@ class IOLoop(object):
         if hasattr(self._impl, 'fileno'):
             set_close_exec(self._impl.fileno())
         self._handlers = {}
-        self._events = {}
+        self._events = ordereddict.OrderedDict()
         self._callbacks = []
         self._callback_lock = threading.Lock()
         self._timeouts = []
@@ -124,7 +125,7 @@ class IOLoop(object):
         self._waker = Waker()
         self.add_handler(self._waker.fileno(),
                          lambda fd, events: self._waker.consume(),
-                         self.READ)
+                         self.READ, priority=0)
 
     @staticmethod
     def instance():
@@ -167,7 +168,7 @@ class IOLoop(object):
         If ``all_fds`` is true, all file descriptors registered on the
         IOLoop will be closed (not just the ones created by the IOLoop itself.
         """
-        self.remove_handler(self._waker.fileno())
+        self.remove_handler(self._waker.fileno(), priority=0)
         if all_fds:
             for fd in self._handlers.keys()[:]:
                 try:
@@ -177,21 +178,24 @@ class IOLoop(object):
         self._waker.close()
         self._impl.close()
 
-    def add_handler(self, fd, handler, events):
+    def add_handler(self, fd, handler, events, priority=None):
         """Registers the given handler to receive the given events for fd."""
         self._handlers[fd] = stack_context.wrap(handler)
-        self._impl.register(fd, events | self.ERROR)
+        kwargs = self._get_poll_kwargs(priority)
+        self._impl.register(fd, events | self.ERROR, **kwargs)
 
-    def update_handler(self, fd, events):
+    def update_handler(self, fd, events, priority=None):
         """Changes the events we listen for fd."""
-        self._impl.modify(fd, events | self.ERROR)
+        kwargs = self._get_poll_kwargs(priority)
+        self._impl.modify(fd, events | self.ERROR, **kwargs)
 
-    def remove_handler(self, fd):
+    def remove_handler(self, fd, priority=None):
         """Stop listening for events on fd."""
         self._handlers.pop(fd, None)
         self._events.pop(fd, None)
+        kwargs = self._get_poll_kwargs(priority)
         try:
-            self._impl.unregister(fd)
+            self._impl.unregister(fd, **kwargs)
         except (OSError, IOError):
             logging.debug("Error deleting fd from IOLoop", exc_info=True)
 
@@ -267,7 +271,7 @@ class IOLoop(object):
                         poll_timeout = min(milliseconds, poll_timeout)
                         break
 
-            if self._callbacks:
+            if self._callbacks or self._events:
                 # If any callbacks or timeouts called add_callback,
                 # we don't want to wait in poll() before we run them.
                 poll_timeout = 0.0
@@ -305,7 +309,7 @@ class IOLoop(object):
             # this IOLoop that update self._events
             self._events.update(event_pairs)
             while self._events:
-                fd, events = self._events.popitem()
+                fd, events = self._events.popitem(False)
                 try:
                     self._handlers[fd](fd, events)
                 except (OSError, IOError), e:
@@ -318,6 +322,7 @@ class IOLoop(object):
                 except Exception:
                     logging.error("Exception in I/O handler for fd %d",
                                   fd, exc_info=True)
+
         # reset the stopped flag so another start/stop pair can be issued
         self._stopped = False
         if self._blocking_signal_threshold is not None:
@@ -397,6 +402,13 @@ class IOLoop(object):
             callback()
         except Exception:
             self.handle_callback_exception(callback)
+
+    def _get_poll_kwargs(self, priority):
+        kwargs = {}
+        if priority is not None and isinstance(self._impl, PriorityPoll):
+            kwargs['priority'] = priority
+
+        return kwargs
 
     def handle_callback_exception(self, callback):
         """This method is called whenever a callback run by the IOLoop
@@ -635,3 +647,46 @@ else:
         if "linux" in sys.platform:
             logging.warning("epoll module not found; using select()")
         _poll = _Select
+
+class PriorityPoll(object):
+    def __init__(self, levels=2, impl=None):
+        self._polls = {}
+        self._levels = levels
+        for i in xrange(levels):
+            self._polls[i] = _poll()
+
+    def close(self):
+        for p in self._polls.itervalues():
+            p.close()
+
+    def register(self, fd, events, priority):
+        self._polls[priority].register(fd, events)
+
+    def modify(self, fd, events, priority):
+        self._polls[priority].unregister(fd)
+        self._polls[priority].register(fd, events)
+
+    def unregister(self, fd, priority):
+        self._polls[priority].unregister(fd)
+
+    def poll(self, timeout):
+        for i in xrange(self._levels):
+            poll = self._polls[i]
+            try:
+                # only time o ut on the last level... all prior levels are timeout 0
+                result = poll.poll(timeout if i+1 == self._levels else 0.0)
+                if result:
+                    return result
+            except Exception, e:
+                # Depending on python version and IOLoop implementation,
+                # different exception types may be thrown and there are
+                # two ways EINTR might be signaled:
+                # * e.errno == errno.EINTR
+                # * e.args is like (errno.EINTR, 'Interrupted system call')
+                if (getattr(e, 'errno', None) == errno.EINTR or
+                    (isinstance(getattr(e, 'args', None), tuple) and
+                     len(e.args) == 2 and e.args[0] == errno.EINTR)):
+                    continue
+                else:
+                    raise
+        return []
