@@ -648,6 +648,141 @@ else:
             logging.warning("epoll module not found; using select()")
         _poll = _Select
 
+class AsyncMongoIOLoop(IOLoop):
+    def start(self):
+        """Starts the I/O loop, optimized for async mongo
+
+        The loop will run until one of the I/O handlers calls stop(), which
+        will make the loop stop after the current event iteration completes.
+
+        IOLoop wasn't designed for short requests that yield dozens of times
+        and using async mongo + vanilla IOLoop causes request starvation when
+        too many requests get accepted without enough clearing out.
+
+        To favour completing existing requests over accepting new ones, we do
+        2 main things:
+
+            1. priority-driven epoll - mongo FDs get a higher priority than the
+               socket we accept() web requests over so they're done first.
+
+            2. require 2 consecutive loop iterations where no pending work is
+               done before we allow an accept() to happen. the reason this
+               requires 2 iterations is to give enough time for a round of mongo
+               queries to return results so we can avoid accept()ing when we're
+               waiting on short-lived queries.
+
+               at 5ms/iteration, though, this should let us quickly accept() if
+               there's nothing to do.
+        """
+        if self._stopped:
+            self._stopped = False
+            return
+        self._thread_ident = thread.get_ident()
+        self._running = True
+
+        # number of iterations since work was done (i.e. event or callback
+        # were run)
+        iter_since_work = 0
+
+        while True:
+            # Never use an infinite timeout here - it can stall epoll
+            poll_timeout = 0.005
+
+            did_work = False
+
+            # Prevent IO event starvation by delaying new callbacks
+            # to the next iteration of the event loop.
+            with self._callback_lock:
+                callbacks = self._callbacks
+                self._callbacks = []
+            for callback in callbacks:
+                did_work = True
+                self._run_callback(callback)
+
+            if self._timeouts:
+                now = time.time()
+                while self._timeouts:
+                    if self._timeouts[0].callback is None:
+                        # the timeout was cancelled
+                        heapq.heappop(self._timeouts)
+                    elif self._timeouts[0].deadline <= now:
+                        timeout = heapq.heappop(self._timeouts)
+                        self._run_callback(timeout.callback)
+                    else:
+                        milliseconds = self._timeouts[0].deadline - now
+                        poll_timeout = min(milliseconds, poll_timeout)
+                        break
+
+            if not self._running:
+                break
+
+            # Pop one fd at a time from the set of pending fds and run
+            # its handler. Since that handler may perform actions on
+            # other file descriptors, there may be reentrant calls to
+            # this IOLoop that update self._events
+            while self._events:
+                did_work = True
+                fd, events = self._events.popitem(False)
+                try:
+                    self._handlers[fd](fd, events)
+                except (OSError, IOError), e:
+                    if e.args[0] == errno.EPIPE:
+                        # Happens when the client closes the connection
+                        pass
+                    else:
+                        logging.error("Exception in I/O handler for fd %d",
+                                      fd, exc_info=True)
+                except Exception:
+                    logging.error("Exception in I/O handler for fd %d",
+                                  fd, exc_info=True)
+
+            if not did_work:
+                iter_since_work += 1
+            else:
+                iter_since_work = 0
+
+            # if we've got work waiting, don't allow a timeout
+            if self._events or self._callbacks:
+                poll_timeout = 0.0
+
+            if self._blocking_signal_threshold is not None:
+                # clear alarm so it doesn't fire while poll is waiting for
+                # events.
+                signal.setitimer(signal.ITIMER_REAL, 0, 0)
+
+            try:
+                # only process mongo events unless we've done nothing for the
+                # last 2 iterations (~10ms)
+                max_priority = 0 if iter_since_work <= 1 else 1
+
+                event_pairs = self._impl.poll(poll_timeout,
+                                              max_priority=max_priority)
+            except Exception, e:
+                # Depending on python version and IOLoop implementation,
+                # different exception types may be thrown and there are
+                # two ways EINTR might be signaled:
+                # * e.errno == errno.EINTR
+                # * e.args is like (errno.EINTR, 'Interrupted system call')
+                if (getattr(e, 'errno', None) == errno.EINTR or
+                    (isinstance(getattr(e, 'args', None), tuple) and
+                     len(e.args) == 2 and e.args[0] == errno.EINTR)):
+                    continue
+                else:
+                    raise
+
+            self._events.update(event_pairs)
+
+            if self._blocking_signal_threshold is not None:
+                signal.setitimer(signal.ITIMER_REAL,
+                                 self._blocking_signal_threshold, 0)
+
+
+        # reset the stopped flag so another start/stop pair can be issued
+        self._stopped = False
+        if self._blocking_signal_threshold is not None:
+            signal.setitimer(signal.ITIMER_REAL, 0, 0)
+
+
 class PriorityPoll(object):
     def __init__(self, levels=2, impl=None):
         self._polls = {}
@@ -669,13 +804,18 @@ class PriorityPoll(object):
     def unregister(self, fd, priority):
         self._polls[priority].unregister(fd)
 
-    def poll(self, timeout):
+    def poll(self, timeout, max_priority=None):
+        if max_priority is None:
+            max_priority = self._levels - 1
         for i in xrange(self._levels):
+            if i > max_priority:
+                return []
             poll = self._polls[i]
             try:
-                # only time o ut on the last level... all prior levels are timeout 0
-                result = poll.poll(timeout if i+1 == self._levels else 0.0)
+                # only time out on the last level... all prior levels are timeout 0
+                result = poll.poll(timeout if i == max_priority else 0.0)
                 if result:
+                    print "got events on priority %d" % i
                     return result
             except Exception, e:
                 # Depending on python version and IOLoop implementation,
