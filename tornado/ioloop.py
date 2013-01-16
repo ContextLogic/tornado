@@ -815,7 +815,6 @@ class PriorityPoll(object):
                 # only time out on the last level... all prior levels are timeout 0
                 result = poll.poll(timeout if i == max_priority else 0.0)
                 if result:
-                    print "got events on priority %d" % i
                     return result
             except Exception, e:
                 # Depending on python version and IOLoop implementation,
