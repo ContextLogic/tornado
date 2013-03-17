@@ -21,9 +21,23 @@ information.
 from __future__ import with_statement
 
 from cStringIO import StringIO
-from tornado.httpclient import AsyncHTTPClient
-from tornado.httpserver import HTTPServer
-from tornado.stack_context import StackContext, NullContext
+try:
+    from tornado.httpclient import AsyncHTTPClient
+    from tornado.httpserver import HTTPServer
+    from tornado.simple_httpclient import SimpleAsyncHTTPClient
+    from tornado.ioloop import IOLoop
+    from tornado import netutil
+except ImportError:
+    # These modules are not importable on app engine.  Parts of this module
+    # won't work, but e.g. LogTrapTestCase and main() will.
+    AsyncHTTPClient = None
+    HTTPServer = None
+    IOLoop = None
+    netutil = None
+    SimpleAsyncHTTPClient = None
+from tornado.log import gen_log
+from tornado.stack_context import StackContext
+from tornado.util import raise_exc_info
 import contextlib
 import logging
 import sys
@@ -159,11 +173,7 @@ class AsyncTestCase(unittest.TestCase):
                 self.io_loop.add_timeout(time.time() + timeout, timeout_func)
             while True:
                 self.__running = True
-                with NullContext():
-                    # Wipe out the StackContext that was established in
-                    # self.run() so that all callbacks executed inside the
-                    # IOLoop will re-run it.
-                    self.io_loop.start()
+                self.io_loop.start()
                 if (self.__failure is not None or
                     condition is None or condition()):
                     break
