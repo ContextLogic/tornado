@@ -67,6 +67,7 @@ import functools
 import operator
 import sys
 import types
+from tornado.stack_context import ExceptionStackContext
 
 class KeyReuseError(Exception): pass
 class UnknownKeyError(Exception): pass
@@ -86,11 +87,30 @@ def engine(func):
     """
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        gen = func(*args, **kwargs)
-        if isinstance(gen, types.GeneratorType):
-            return Runner(gen).run()
-        assert gen is None, gen
+        #gen = func(*args, **kwargs)
+        #if isinstance(gen, types.GeneratorType):
+        #    return Runner(gen).run()
+        #assert gen is None, gen
         # no yield, so we're done
+        runner = None
+
+        def handle_exception(typ, value, tb):
+            # if the function throws an exception before its first "yield"
+            # (or is not a generator at all), the Runner won't exist yet.
+            # However, in that case we haven't reached anything asynchronous
+            # yet, so we can just let the exception propagate.
+            if runner is not None:
+                return runner.handle_exception(typ, value, tb)
+            return False
+        with ExceptionStackContext(handle_exception) as deactivate:
+            gen = func(*args, **kwargs)
+            if isinstance(gen, types.GeneratorType):
+                runner = Runner(gen, deactivate)
+                runner.run()
+                return
+            assert gen is None, gen
+            deactivate()
+            # no yield, so we're done
     return wrapper
 
 
@@ -247,8 +267,9 @@ class Runner(object):
 
     Maintains information about pending callbacks and their results.
     """
-    def __init__(self, gen):
+    def __init__(self, gen, deactivate_stack_context):
         self.gen = gen
+        self.deactivate_stack_context = deactivate_stack_context
         self.yield_point = _NullYieldPoint()
         self.pending_callbacks = set()
         self.results = {}
@@ -304,18 +325,15 @@ class Runner(object):
                         yielded = self.gen.send(next)
                 except StopIteration:
                     self.finished = True
-                    if self.pending_callbacks:
-                        # TODO [adam Oct/2/11]: Find a better way around this...
-                        #      Basically, the problem is that on error we're
-                        #      leaking a callback. Not that big a deal (gc will
-                        #      free the memory), but it fails this sanity check.
-                        #      What needs to happen is I need to find a way to
-                        #      clear the pending_callbacks out if there is an
-                        #      error.
-                        #raise LeakedCallbackError(
-                        #    "finished without waiting for callbacks %r" %
-                        #    self.pending_callbacks)
-                        pass
+                    if self.pending_callbacks and not self.had_exception:
+                        # If we ran cleanly without waiting on all callbacks
+                        # raise an error (really more of a warning).  If we
+                        # had an exception then some callbacks may have been
+                        # orphaned, so skip the check in that case.
+                        raise LeakedCallbackError(
+                            "finished without waiting for callbacks %r" %
+                            self.pending_callbacks)
+                    self.deactivate_stack_context()
                     return
                 except Exception:
                     self.finished = True
