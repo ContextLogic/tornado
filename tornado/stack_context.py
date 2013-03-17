@@ -160,9 +160,11 @@ def wrap(fn):
         return fn
     # functools.wraps doesn't appear to work on functools.partial objects
     #@functools.wraps(fn)
-    def wrapped(cb, contexts, *args, **kwargs):
-        if contexts is _state.contexts or not contexts:
-            cb(*args, **kwargs)
+    def wrapped(*args, **kwargs):
+        callback, contexts, args = args[0], args[1], args[2:]
+
+        if contexts is _state.contexts:
+            callback(*args, **kwargs)
             return
         if not _state.contexts:
             new_contexts = [cls(arg, active_cell)
@@ -188,16 +190,13 @@ def wrap(fn):
                             if active_cell[0]]
         if len(new_contexts) > 1:
             with _nested(*new_contexts):
-                cb(*args, **kwargs)
+                callback(*args, **kwargs)
         elif new_contexts:
             with new_contexts[0]:
-                cb(*args, **kwargs)
+                callback(*args, **kwargs)
         else:
-            cb(*args, **kwargs)
-    if _state.contexts:
-        return _StackContextWrapper(wrapped, fn, _state.contexts)
-    else:
-        return _StackContextWrapper(fn)
+            callback(*args, **kwargs)
+    return _StackContextWrapper(wrapped, fn, _state.contexts)
 
 @contextlib.contextmanager
 def _nested(*managers):
