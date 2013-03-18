@@ -211,7 +211,7 @@ class TCPServer(object):
             if self.ssl_options is not None:
                 stream = SSLIOStream(connection, io_loop=self.io_loop)
             else:
-                stream = IOStream(connection, io_loop=self.io_loop, priority=1)
+                stream = IOStream(connection, io_loop=self.io_loop)
             self.handle_stream(stream, address)
         except Exception:
             logging.error("Error in connection callback", exc_info=True)
@@ -231,7 +231,7 @@ def bind_sockets(port, address=None, family=socket.AF_UNSPEC, backlog=128):
     or socket.AF_INET6 to restrict to ipv4 or ipv6 addresses, otherwise
     both will be used if available.
 
-    The ``backlog`` argument has the same meaning as for
+    The ``backlog`` argument has the same meaning as for 
     ``socket.listen()``.
     """
     sockets = []
@@ -275,7 +275,7 @@ if hasattr(socket, 'AF_UNIX'):
         If any other file with that name exists, an exception will be
         raised.
 
-        Returns a socket object (not a list of socket objects like
+        Returns a socket object (not a list of socket objects like 
         `bind_sockets`)
         """
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -317,4 +317,4 @@ def add_accept_handler(sock, callback, io_loop=None):
                     return
                 raise
             callback(connection, address)
-    io_loop.add_handler(sock.fileno(), accept_handler, IOLoop.READ, priority=1)
+    io_loop.add_handler(sock.fileno(), accept_handler, IOLoop.READ)

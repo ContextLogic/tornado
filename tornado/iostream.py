@@ -39,7 +39,7 @@ class IOStream(object):
 
     We support a non-blocking ``write()`` and a family of ``read_*()`` methods.
     All of the methods take callbacks (since writing and reading are
-    non-blocking and asynchronous).
+    non-blocking and asynchronous). 
 
     The socket parameter may either be connected or unconnected.  For
     server operations the socket is the result of calling socket.accept().
@@ -77,7 +77,7 @@ class IOStream(object):
 
     """
     def __init__(self, socket, io_loop=None, max_buffer_size=104857600,
-                 read_chunk_size=4096, priority=None):
+                 read_chunk_size=4096):
         self.socket = socket
         self.socket.setblocking(False)
         self.io_loop = io_loop or ioloop.IOLoop.instance()
@@ -100,7 +100,6 @@ class IOStream(object):
         self._state = None
         self._pending_callbacks = 0
         self._conn_closed = False
-        self._priority = priority
 
     def connect(self, address, callback=None):
         """Connects the socket to a remote address without blocking.
@@ -140,7 +139,7 @@ class IOStream(object):
             if self._read_to_buffer() == 0:
                 break
         self._add_io_state(self.io_loop.READ)
-
+        
     def read_until(self, delimiter, callback):
         """Call callback when we read the given delimiter."""
         assert not self._read_callback, "Already reading"
@@ -174,15 +173,6 @@ class IOStream(object):
             if self._read_to_buffer() == 0:
                 break
         self._add_io_state(self.io_loop.READ)
-
-    def read_bytes_sync(self, num_bytes):
-        if self._read_buffer_size < num_bytes:
-            raise IOError("Not enough bytes in the buffer")
-
-        return self._consume(num_bytes)
-
-    def can_read_sync(self, num_bytes):
-        return self._read_buffer_size >= num_bytes
 
     def read_until_close(self, callback, streaming_callback=None):
         """Reads all data from the socket until it is closed.
@@ -234,7 +224,7 @@ class IOStream(object):
                 self._run_callback(callback,
                                    self._consume(self._read_buffer_size))
             if self._state is not None and not self._conn_closed:
-                self.io_loop.remove_handler(self.socket.fileno(), self._priority)
+                self.io_loop.remove_handler(self.socket.fileno())
                 self._state = None
             self.socket.close()
             self.socket = None
@@ -280,7 +270,7 @@ class IOStream(object):
                 return
             if events & self.io_loop.CONN_CLOSED:
                 if not self._conn_closed:
-                    self.io_loop.remove_handler(self.socket.fileno(), self._priority)
+                    self.io_loop.remove_handler(self.socket.fileno())
                 self._conn_closed = True
                 return
             state = self.io_loop.ERROR | self.io_loop.CONN_CLOSED
@@ -292,7 +282,7 @@ class IOStream(object):
                 assert self._state is not None, \
                     "shouldn't happen: _handle_events without self._state"
                 self._state = state
-                self.io_loop.update_handler(self.socket.fileno(), self._state, self._priority)
+                self.io_loop.update_handler(self.socket.fileno(), self._state)
         except Exception:
             logging.error("Uncaught exception, closing connection.",
                           exc_info=True)
@@ -493,7 +483,9 @@ class IOStream(object):
                     self.close()
                     return
         if not self._write_buffer and self._write_callback:
-            self._run_callback(self._write_callback)
+            callback = self._write_callback
+            self._write_callback = None
+            self._run_callback(callback)
 
     def _consume(self, loc):
         if loc == 0:
@@ -546,10 +538,10 @@ class IOStream(object):
             self._state = self.io_loop.ERROR | self.io_loop.CONN_CLOSED | state
             with stack_context.NullContext():
                 self.io_loop.add_handler(
-                    self.socket.fileno(), self._handle_events, self._state, self._priority)
+                    self.socket.fileno(), self._handle_events, self._state)
         elif not self._state & state:
             self._state = self._state | state
-            self.io_loop.update_handler(self.socket.fileno(), self._state, self._priority)
+            self.io_loop.update_handler(self.socket.fileno(), self._state)
 
 
 class SSLIOStream(IOStream):
