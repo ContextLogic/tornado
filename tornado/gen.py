@@ -273,6 +273,7 @@ class Runner(object):
         self.running = False
         self.finished = False
         self.exc_info = None
+        self.had_exception = False
 
     def register_callback(self, key):
         """Adds ``key`` to the list of callbacks."""
@@ -315,6 +316,7 @@ class Runner(object):
                         self.exc_info = sys.exc_info()
                 try:
                     if self.exc_info is not None:
+                        self.had_exception = True
                         exc_info = self.exc_info
                         self.exc_info = None
                         yielded = self.gen.throw(*exc_info)
