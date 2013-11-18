@@ -21,6 +21,7 @@ from __future__ import with_statement
 import cStringIO
 import collections
 import logging
+import os
 import pycurl
 import threading
 import time
@@ -31,6 +32,8 @@ from tornado import stack_context
 
 from tornado.escape import utf8
 from tornado.httpclient import HTTPRequest, HTTPResponse, HTTPError, AsyncHTTPClient, main
+
+_DEFAULT_CA_CERTS = os.path.dirname(__file__) + '/ca-certificates.crt'
 
 class CurlAsyncHTTPClient(AsyncHTTPClient):
     def initialize(self, io_loop=None, max_clients=10,
@@ -337,13 +340,7 @@ def _curl_setup_request(curl, request, buffer, headers):
     if request.ca_certs is not None:
         curl.setopt(pycurl.CAINFO, request.ca_certs)
     else:
-        # There is no way to restore pycurl.CAINFO to its default value
-        # (Using unsetopt makes it reject all certificates).
-        # I don't see any way to read the default value from python so it
-        # can be restored later.  We'll have to just leave CAINFO untouched
-        # if no ca_certs file was specified, and require that if any
-        # request uses a custom ca_certs file, they all must.
-        pass
+        curl.setopt(pycurl.CAINFO, _DEFAULT_CA_CERTS)
 
     if request.allow_ipv6 is False:
         # Curl behaves reasonably when DNS resolution gives an ipv6 address
