@@ -35,6 +35,42 @@ from tornado.httpclient import HTTPRequest, HTTPResponse, HTTPError, AsyncHTTPCl
 
 _DEFAULT_CA_CERTS = os.path.dirname(__file__) + '/ca-certificates.crt'
 
+class CurlHTTPClient(object):
+    def __init__(self):
+        self._io_loop = ioloop.IOLoop()
+        self._async_client = CurlAsyncHTTPClient(self._io_loop)
+        self._response = None
+        self._closed = False
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        """Closes the HTTPClient, freeing any resources used."""
+        if not self._closed:
+            self._async_client.close()
+#            self._io_loop.close()
+#            self._closed = True
+
+    def fetch(self, request, **kwargs):
+        """Executes a request, returning an `HTTPResponse`.
+
+        The request may be either a string URL or an `HTTPRequest` object.
+        If it is a string, we construct an `HTTPRequest` using any additional
+        kwargs: ``HTTPRequest(request, **kwargs)``
+
+        If an error occurs during the fetch, we raise an `HTTPError`.
+        """
+        def callback(response):
+            self._response = response
+            self._io_loop.stop()
+        self._async_client.fetch(request, callback, **kwargs)
+        self._io_loop.start()
+        response = self._response
+        self._response = None
+        response.rethrow()
+        return response
+
 class CurlAsyncHTTPClient(AsyncHTTPClient):
     def initialize(self, io_loop=None, max_clients=10,
                    max_simultaneous_connections=None):
