@@ -35,9 +35,7 @@ except ImportError:
     IOLoop = None
     netutil = None
     SimpleAsyncHTTPClient = None
-from tornado.log import gen_log
 from tornado.stack_context import StackContext
-from tornado.util import raise_exc_info
 import contextlib
 import logging
 import sys

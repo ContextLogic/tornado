@@ -25,6 +25,7 @@ import os
 import pycurl
 import threading
 import time
+from io import BytesIO
 
 from tornado import httputil
 from tornado import ioloop
@@ -404,16 +405,26 @@ def _curl_setup_request(curl, request, buffer, headers):
         raise KeyError('unknown method ' + request.method)
 
     # Handle curl's cryptic options for every individual HTTP method
-    if request.method in ("POST", "PUT"):
-        request_buffer =  cStringIO.StringIO(utf8(request.body))
+    if request.method == "GET":
+        if request.body is not None:
+            logging.warning("GET request body should be None.")
+    elif request.method in ("POST", "PUT") or request.body:
+        if request.body is None:
+            raise ValueError(
+                'Body must not be None for "%s" request'
+                % request.method)
+
+        request_buffer = BytesIO(utf8(request.body))
+
+        def ioctl(cmd):
+            if cmd == curl.IOCMD_RESTARTREAD:
+                request_buffer.seek(0)
         curl.setopt(pycurl.READFUNCTION, request_buffer.read)
+        curl.setopt(pycurl.IOCTLFUNCTION, ioctl)
         if request.method == "POST":
-            def ioctl(cmd):
-                if cmd == curl.IOCMD_RESTARTREAD:
-                    request_buffer.seek(0)
-            curl.setopt(pycurl.IOCTLFUNCTION, ioctl)
             curl.setopt(pycurl.POSTFIELDSIZE, len(request.body))
         else:
+            curl.setopt(pycurl.UPLOAD, True)
             curl.setopt(pycurl.INFILESIZE, len(request.body))
 
     if request.auth_username and request.auth_password:

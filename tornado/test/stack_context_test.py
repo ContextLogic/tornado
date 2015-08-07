@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 from __future__ import with_statement
 
-<<<<<<< HEAD
 from tornado.stack_context import StackContext, wrap
 from tornado.testing import AsyncHTTPTestCase, AsyncTestCase, LogTrapTestCase
-=======
 from tornado.log import app_log
 from tornado.stack_context import StackContext, wrap, NullContext
 from tornado.testing import AsyncHTTPTestCase, AsyncTestCase, ExpectLog
 from tornado.test.util import unittest
->>>>>>> 69e4492... Improve isolation of stack contexts.
+
 from tornado.util import b
 from tornado.web import asynchronous, Application, RequestHandler
 import contextlib
