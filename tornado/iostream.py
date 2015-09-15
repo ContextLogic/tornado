@@ -39,7 +39,7 @@ class IOStream(object):
 
     We support a non-blocking ``write()`` and a family of ``read_*()`` methods.
     All of the methods take callbacks (since writing and reading are
-    non-blocking and asynchronous). 
+    non-blocking and asynchronous).
 
     The socket parameter may either be connected or unconnected.  For
     server operations the socket is the result of calling socket.accept().
@@ -90,6 +90,7 @@ class IOStream(object):
         self._read_delimiter = None
         self._read_regex = None
         self._read_bytes = None
+        self._read_partial = None
         self._read_until_close = False
         self._read_callback = None
         self._streaming_callback = None
@@ -139,7 +140,7 @@ class IOStream(object):
             if self._read_to_buffer() == 0:
                 break
         self._add_io_state(self.io_loop.READ)
-        
+
     def read_until(self, delimiter, callback):
         """Call callback when we read the given delimiter."""
         assert not self._read_callback, "Already reading"
@@ -154,16 +155,21 @@ class IOStream(object):
                 break
         self._add_io_state(self.io_loop.READ)
 
-    def read_bytes(self, num_bytes, callback, streaming_callback=None):
+    def read_bytes(self, num_bytes, callback, streaming_callback=None,
+                   partial=False):
         """Call callback when we read the given number of bytes.
 
         If a ``streaming_callback`` is given, it will be called with chunks
         of data as they become available, and the argument to the final
         ``callback`` will be empty.
+
+        If ``partial`` is true, the callback is run as soon as we have
+        any bytes to return (but never more than ``num_bytes``)
         """
         assert not self._read_callback, "Already reading"
         assert isinstance(num_bytes, int)
         self._read_bytes = num_bytes
+        self._read_partial = partial
         self._read_callback = stack_context.wrap(callback)
         self._streaming_callback = stack_context.wrap(streaming_callback)
         while True:
@@ -395,7 +401,8 @@ class IOStream(object):
                 self._read_bytes -= bytes_to_consume
                 self._run_callback(self._streaming_callback,
                                    self._consume(bytes_to_consume))
-            if self._read_buffer_size >= self._read_bytes:
+            if (self._read_buffer_size >= self._read_bytes or
+                    (self._read_partial and self._read_buffer_size > 0)):
                 num_bytes = self._read_bytes
                 callback = self._read_callback
                 self._read_callback = None
