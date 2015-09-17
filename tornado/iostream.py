@@ -90,7 +90,7 @@ class IOStream(object):
         self._read_delimiter = None
         self._read_regex = None
         self._read_bytes = None
-        self._read_partial = None
+        self._read_partial = False
         self._read_until_close = False
         self._read_callback = None
         self._streaming_callback = None
@@ -403,11 +403,12 @@ class IOStream(object):
                                    self._consume(bytes_to_consume))
             if (self._read_buffer_size >= self._read_bytes or
                     (self._read_partial and self._read_buffer_size > 0)):
-                num_bytes = self._read_bytes
+                num_bytes = min(self._read_bytes, self._read_buffer_size)
                 callback = self._read_callback
                 self._read_callback = None
                 self._streaming_callback = None
                 self._read_bytes = None
+                self._read_partial = False
                 self._run_callback(callback, self._consume(num_bytes))
                 return True
         elif self._read_delimiter is not None:
