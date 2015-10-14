@@ -170,8 +170,17 @@ class _HTTPConnection(object):
                 # so restrict to ipv4 by default.
                 af = socket.AF_INET
 
-            addrinfo = socket.getaddrinfo(host, port, af, socket.SOCK_STREAM,
+            try:
+                addrinfo = socket.getaddrinfo(host, port, af, socket.SOCK_STREAM,
                                           0, 0)
+            except:
+                resp = HTTPResponse(self.request, 403,
+                    request_time=time.time() - self.start_time,
+                    error=HTTPError(403, "Bad URL"))
+                self.io_loop.add_timeout(self.start_time,
+                    functools.partial(self._run_callback, resp))
+                return
+
             af, socktype, proto, canonname, sockaddr = addrinfo[0]
 
             if parsed.scheme == "https":
