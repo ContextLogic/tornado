@@ -1899,7 +1899,7 @@ def decode_signed_value(secret, name, value, max_age_days=31):
         return None
     timestamp = int(parts[1])
     if timestamp < time.time() - max_age_days * 86400:
-        logging.warning("Expired cookie %r", value)
+        logging.debug("Expired cookie %r", value)
         return None
     if timestamp > time.time() + 31 * 86400:
         # _cookie_signature does not hash a delimiter between the
