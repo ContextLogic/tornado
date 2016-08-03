@@ -8,7 +8,7 @@ from tornado.httpclient import HTTPClient, HTTPError
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 from tornado.netutil import bind_sockets
-from tornado.process import fork_processes, task_id
+from tornado.process import fork_processes, task_id, fork_processes_with_watchdog
 from tornado.testing import LogTrapTestCase, get_unused_port
 from tornado.web import RequestHandler, Application
 
