@@ -307,6 +307,9 @@ def fork_processes_with_watchdog(num_processes, child_pids=None,
                 except OSError, e:
                     if e.errno == errno.EINTR:
                         continue
+                    # all children are dead
+                    if e.errno == errno.ECHILD:
+                        return None, None
                     raise
                 # Still alive
                 if status == 0:
