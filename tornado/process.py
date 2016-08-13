@@ -162,7 +162,8 @@ SLEEP_PERIOD      = 30  # period in seconds between watchdog checks
 GRACE_PERIOD      = 300 # period in seconds to allow a new tornado to spin up
 MAX_RSS           = 1536 * 1024 * 1024 # Allow up to 1.5G of memory per process
 
-def fork_processes_with_watchdog(num_processes, child_pids=None,
+def fork_processes_with_watchdog(
+    num_processes, is_shutdown_callback, child_pids=None,
     stoploss_ratio=STOPLOSS_RATIO, timeout_period=TIMEOUT_PERIOD,
     sleep_period=SLEEP_PERIOD, grace_period=GRACE_PERIOD,
     max_rss=MAX_RSS, statsd=None, app_name='default'):
@@ -232,6 +233,8 @@ def fork_processes_with_watchdog(num_processes, child_pids=None,
             last_checkin[pid] = time.time() + grace_period
             pipes[pid] = (parent_conn, child_conn)
             processes[pid] = psutil.Process(pid)
+            logging.info("Started new child process with number %d pid %d",
+                i, pid)
             return None, None
 
     def cleanup_pid(pid, remove_from_child_pids=True):
@@ -272,6 +275,34 @@ def fork_processes_with_watchdog(num_processes, child_pids=None,
     sent_term = set()
     while children:
         try:
+            # Try to respawn any children that don't exist yet
+            # this can happen during bad site issues where a process
+            # dies because it can't connect to mongo, etc and then gets
+            # reaped by our upstart checker. This will put us in a period
+            # of permanent stoploss, so to avoid that we respawn here
+            # Only execute if we're not shutting down.
+            if not is_shutdown_callback():
+                alive_children = set(children.values())
+                children_to_spawn = set(range(num_processes)) - alive_children
+                for child_number in children_to_spawn:
+                    _id, child_conn = start_child(child_number)
+                    if _id is not None: return _id, child_conn
+            else:
+                # there's a race where we can spawn children after the tornado
+                # app has received the shutdown signal. This will ensure we will
+                # eventually shutdown. Should happen very rarely
+                for pid, child_number in children.iteritems():
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                        if pid in healthy:
+                            healthy.remove(pid)
+                        send_stat('infra.frontend.%s.shutdown_term' % app_name,1)
+                    except OSError:
+                        logging.exception(
+                            "Failed to terminate pid %d process number %d "\
+                                "while shutting down",
+                            pid, child_number)
+
             # for all the processes we've sent SIGTERM, make sure they are
             # not running anymore - if they are escalate to SIGKILL.
             # Shouldn't need to check for stoploss, since len(sent_term)
@@ -281,25 +312,34 @@ def fork_processes_with_watchdog(num_processes, child_pids=None,
             # to the child processes
             for i, (pid, child_number) in enumerate(sent_term):
                 if processes[pid].is_running():
-                    logging.info("Trying to kill pid %d process number %d, "\
-                                 "failed to terminate gracefully in time",
+                    logging.info("Trying to kill pid %d process number %d",
                                  pid, child_number)
                     try:
                         os.kill(pid, signal.SIGKILL)
-                        send_stat('infra.frontend.%s.kill_mem' % app_name,1)
+                        send_stat('infra.frontend.%s.kill' % app_name,1)
                     except OSError:
                         logging.exception("Failed to kill pid %d process number %d",
                             pid, child_number)
 
+                    logging.info("Trying to wait on pid %d process number %d",
+                                 pid, child_number)
+                    try:
+                        os.waitpid(pid, os.WNOHANG)
+                    except OSError:
+                        logging.exception("Failed to wait on pid %d process number %d",
+                                     pid, child_number)
+
                 cleanup_pid(pid)
 
-                _id, child_conn = start_child(child_number)
-                if _id is not None: return _id, child_conn
+                if not is_shutdown_callback():
+                    _id, child_conn = start_child(child_number)
+                    if _id is not None: return _id, child_conn
 
             # reset this
             sent_term = set()
             # Detect if we're being shut down by upstart, in which case
             # we no longer want to respawn child processes that have died
+            # also detect if the child has exited on its own (died on startup)
             to_cleanup = set()
             for pid, _ in children.iteritems():
                 try:
@@ -307,10 +347,8 @@ def fork_processes_with_watchdog(num_processes, child_pids=None,
                 except OSError, e:
                     if e.errno == errno.EINTR:
                         continue
-                    # all children are dead
-                    if e.errno == errno.ECHILD:
-                        return None, None
-                    raise
+                    if e.errno != errno.ECHILD:
+                        raise
                 # Still alive
                 if status == 0:
                     continue
@@ -319,9 +357,6 @@ def fork_processes_with_watchdog(num_processes, child_pids=None,
 
             for pid in to_cleanup:
                 cleanup_pid(pid, remove_from_child_pids=False)
-
-            if len(to_cleanup) > 0:
-                continue
 
             # If we have child processes, see if they're up and running
             to_reap = set()
@@ -425,7 +460,6 @@ def fork_processes_with_watchdog(num_processes, child_pids=None,
         except Exception:
             logging.exception("Unhandled error in watchdog loop")
             send_stat('infra.frontend.%s.unhandled_exception' % app_name,1)
-
     return None, None
 
 def task_id():
