@@ -311,6 +311,10 @@ def fork_processes_with_watchdog(
             # upstart is trying to shut us down since that also sends a SIGTERM
             # to the child processes
             for i, (pid, child_number) in enumerate(sent_term):
+
+                if pid not in processes:
+                    continue
+
                 if processes[pid].is_running():
                     logging.info("Trying to kill pid %d process number %d",
                                  pid, child_number)
