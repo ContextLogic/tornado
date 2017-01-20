@@ -1532,7 +1532,8 @@ class StaticFileHandler(RequestHandler):
                 hashes[abs_path] = hashlib.md5(f.read()).hexdigest()
                 f.close()
             except Exception:
-                logging.error("Could not open static file %r", path)
+                if not getattr(tornado.options.options, 'mock_s3', False):
+                    logging.error("Could not open static file %r", path)
                 hashes[abs_path] = None
         static_url_prefix = settings.get('static_url_prefix', '/static/')
         global_cache_bust = settings.get('static_cache_bust', '')
