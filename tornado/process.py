@@ -403,8 +403,8 @@ def fork_processes_with_watchdog(
 
                 try:
                     # only terminate if it's after grace period
-                    if processes[pid].create_time + grace_period < time.time():
-                        rss, _ = processes[pid].get_memory_info()
+                    if processes[pid].create_time() + grace_period < time.time():
+                        rss, _ = processes[pid].memory_info()[:2]
                         if rss > max_rss:
                             exceed_mem.add((pid, child_number))
                             logging.info(
