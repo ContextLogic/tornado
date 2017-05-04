@@ -106,8 +106,19 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             self._handle_force_timeout, 1000, io_loop=io_loop)
         self._force_timeout_callback.start()
 
+        # Work around a bug in libcurl 7.29.0: Some fields in the curl
+        # multi object are initialized lazily, and its destructor will
+        # segfault if it is destroyed without having been used.  Add
+        # and remove a dummy handle to make sure everything is
+        # initialized.
+        dummy_curl_handle = pycurl.Curl()
+        self._multi.add_handle(dummy_curl_handle)
+        self._multi.remove_handle(dummy_curl_handle)
+
     def close(self):
         self._force_timeout_callback.stop()
+        if self._timeout is not None:
+            self.io_loop.remove_timeout(self._timeout)
         for curl in self._curls:
             curl.close()
         self._multi.close()
@@ -377,7 +388,13 @@ def _curl_setup_request(curl, request, buffer, headers):
     if request.ca_certs is not None:
         curl.setopt(pycurl.CAINFO, request.ca_certs)
     else:
-        curl.setopt(pycurl.CAINFO, _DEFAULT_CA_CERTS)
+        # There is no way to restore pycurl.CAINFO to its default value
+        # (Using unsetopt makes it reject all certificates).
+        # I don't see any way to read the default value from python so it
+        # can be restored later.  We'll have to just leave CAINFO untouched
+        # if no ca_certs file was specified, and require that if any
+        # request uses a custom ca_certs file, they all must.
+        pass
 
     if request.allow_ipv6 is False:
         # Curl behaves reasonably when DNS resolution gives an ipv6 address
