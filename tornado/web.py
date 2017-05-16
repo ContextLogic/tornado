@@ -2699,11 +2699,13 @@ class StaticFileHandler(RequestHandler):
         if not include_version:
             return url
 
+        global_cache_bust = settings.get('static_cache_bust', '')
+
         version_hash = cls.get_version(settings, path)
         if not version_hash:
-            return url
+            return '%s%s' % (url, global_cache_bust)
 
-        return '%s?v=%s' % (url, version_hash)
+        return '%s?v=%s%s' % (url, version_hash, global_cache_bust)
 
     def parse_url_path(self, url_path):
         """Converts a static URL path into a filesystem path.
