@@ -97,7 +97,7 @@ def _pipe_cloexec():
 _task_id = None
 
 
-def fork_processes(num_processes, max_restarts=100):
+def fork_processes(num_processes, max_restarts=100, child_pids=None):
     """Starts multiple worker processes.
 
     If ``num_processes`` is None or <= 0, we detect the number of cores
@@ -142,6 +142,8 @@ def fork_processes(num_processes, max_restarts=100):
             _task_id = i
             return i
         else:
+            if child_pids is not None:
+                child_pids.append(pid)
             children[pid] = i
             return None
 
