@@ -2743,7 +2743,8 @@ class StaticFileHandler(RequestHandler):
                 try:
                     hashes[abs_path] = cls.get_content_version(abs_path)
                 except Exception:
-                    gen_log.error("Could not open static file %r", abs_path)
+                    if not getattr(tornado.options.options, 'mock_s3', False):
+                        gen_log.error("Could not open static file %r", abs_path)
                     hashes[abs_path] = None
             hsh = hashes.get(abs_path)
             if hsh:
