@@ -187,7 +187,7 @@ class OptionParser(object):
             (opt.name, opt.value()) for name, opt in self._options.items())
 
     def define(self, name, default=None, type=None, help=None, metavar=None,
-               multiple=False, group=None, callback=None):
+               multiple=False, group=None, callback=None, hidden=False):
         """Defines a new command line option.
 
         If ``type`` is given (one of str, float, int, datetime, or timedelta)
@@ -252,7 +252,8 @@ class OptionParser(object):
                          default=default, type=type, help=help,
                          metavar=metavar, multiple=multiple,
                          group_name=group_name,
-                         callback=callback)
+                         callback=callback,
+                         hidden=hidden)
         self._options[normalized] = option
 
     def parse_command_line(self, args=None, final=True):
@@ -339,6 +340,8 @@ class OptionParser(object):
                 print("\n%s options:\n" % os.path.normpath(filename), file=file)
             o.sort(key=lambda option: option.name)
             for option in o:
+                if option.hidden:
+                    continue
                 # Always print names with dashes in a CLI context.
                 prefix = self._normalize_name(option.name)
                 if option.metavar:
@@ -419,7 +422,7 @@ class _Option(object):
 
     def __init__(self, name, default=None, type=basestring_type, help=None,
                  metavar=None, multiple=False, file_name=None, group_name=None,
-                 callback=None):
+                 callback=None, hidden=False):
         if default is None and multiple:
             default = []
         self.name = name
@@ -432,6 +435,7 @@ class _Option(object):
         self.callback = callback
         self.default = default
         self._value = _Option.UNSET
+        self.hidden = hidden
 
     def value(self):
         return self.default if self._value is _Option.UNSET else self._value
@@ -548,14 +552,14 @@ All defined options are available as attributes on this object.
 
 
 def define(name, default=None, type=None, help=None, metavar=None,
-           multiple=False, group=None, callback=None):
+           multiple=False, group=None, callback=None, hidden=False):
     """Defines an option in the global namespace.
 
     See `OptionParser.define`.
     """
     return options.define(name, default=default, type=type, help=help,
                           metavar=metavar, multiple=multiple, group=group,
-                          callback=callback)
+                          callback=callback, hidden=hidden)
 
 
 def parse_command_line(args=None, final=True):
