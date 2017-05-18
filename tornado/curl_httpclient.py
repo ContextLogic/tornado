@@ -35,6 +35,7 @@ from tornado.escape import utf8
 from tornado.httpclient import HTTPRequest, HTTPResponse, HTTPError, AsyncHTTPClient, main
 
 _DEFAULT_CA_CERTS = os.path.dirname(__file__) + '/ca-certificates.crt'
+logger = logging.getLogger('tornado.curl_http_client')
 
 class CurlHTTPClient(object):
     def __init__(self):
@@ -92,7 +93,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             # socket_action is found in pycurl since 7.18.2 (it's been
             # in libcurl longer than that but wasn't accessible to
             # python).
-            logging.warning("socket_action method missing from pycurl; "
+            logger.warning("socket_action method missing from pycurl; "
                             "falling back to socket_all. Upgrading "
                             "libcurl and pycurl will improve performance")
             self._socket_action = \
@@ -314,7 +315,7 @@ class CurlError(HTTPError):
 
 def _curl_create(max_simultaneous_connections=None):
     curl = pycurl.Curl()
-    if logging.getLogger().isEnabledFor(logging.DEBUG):
+    if logger.isEnabledFor(logging.DEBUG):
         curl.setopt(pycurl.VERBOSE, 1)
         curl.setopt(pycurl.DEBUGFUNCTION, _curl_debug)
     curl.setopt(pycurl.MAXCONNECTS, max_simultaneous_connections or 5)
@@ -418,7 +419,7 @@ def _curl_setup_request(curl, request, buffer, headers):
     # Handle curl's cryptic options for every individual HTTP method
     if request.method == "GET":
         if request.body is not None:
-            logging.warning("GET request body should be None.")
+            logger.warning("GET request body should be None.")
     elif request.method in ("POST", "PUT") or request.body:
         if request.body is None:
             raise ValueError(
@@ -442,11 +443,11 @@ def _curl_setup_request(curl, request, buffer, headers):
         userpwd = "%s:%s" % (request.auth_username, request.auth_password)
         curl.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
         curl.setopt(pycurl.USERPWD, userpwd)
-        logging.debug("%s %s (username: %r)", request.method, request.url,
+        logger.debug("%s %s (username: %r)", request.method, request.url,
                       request.auth_username)
     else:
         curl.unsetopt(pycurl.USERPWD)
-        logging.debug("%s %s", request.method, request.url)
+        logger.debug("%s %s", request.method, request.url)
 
     if request.client_cert is not None:
         curl.setopt(pycurl.SSLCERT, request.client_cert)
@@ -481,12 +482,12 @@ def _curl_header_callback(headers, header_line):
 def _curl_debug(debug_type, debug_msg):
     debug_types = ('I', '<', '>', '<', '>')
     if debug_type == 0:
-        logging.debug('%s', debug_msg.strip())
+        logger.debug('%s', debug_msg.strip())
     elif debug_type in (1, 2):
         for line in debug_msg.splitlines():
-            logging.debug('%s %s', debug_types[debug_type], line)
+            logger.debug('%s %s', debug_types[debug_type], line)
     elif debug_type == 4:
-        logging.debug('%s %r', debug_types[debug_type], debug_msg)
+        logger.debug('%s %r', debug_types[debug_type], debug_msg)
 
 if __name__ == "__main__":
     AsyncHTTPClient.configure(CurlAsyncHTTPClient)
