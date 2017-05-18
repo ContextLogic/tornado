@@ -388,13 +388,7 @@ def _curl_setup_request(curl, request, buffer, headers):
     if request.ca_certs is not None:
         curl.setopt(pycurl.CAINFO, request.ca_certs)
     else:
-        # There is no way to restore pycurl.CAINFO to its default value
-        # (Using unsetopt makes it reject all certificates).
-        # I don't see any way to read the default value from python so it
-        # can be restored later.  We'll have to just leave CAINFO untouched
-        # if no ca_certs file was specified, and require that if any
-        # request uses a custom ca_certs file, they all must.
-        pass
+        curl.setopt(pycurl.CAINFO, _DEFAULT_CA_CERTS)
 
     if request.allow_ipv6 is False:
         # Curl behaves reasonably when DNS resolution gives an ipv6 address
