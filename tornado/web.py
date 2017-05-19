@@ -1890,13 +1890,13 @@ class Application(ReversibleRouter):
         if self.settings.get("static_path"):
             path = self.settings["static_path"]
             handlers = list(handlers or [])
-            static_url_prefix = settings.get("static_url_prefix",
-                                             "/static/")
+            #static_url_prefix = settings.get("static_url_prefix",
+            #                                 "/static/")
             static_handler_class = settings.get("static_handler_class",
                                                 StaticFileHandler)
             static_handler_args = settings.get("static_handler_args", {})
             static_handler_args['path'] = path
-            for pattern in [re.escape(static_url_prefix) + r"(.*)",
+            for pattern in [re.escape("/static/") + r"(.*)",
                             r"/(favicon\.ico)", r"/(robots\.txt)"]:
                 handlers.insert(0, (pattern, static_handler_class,
                                     static_handler_args))
