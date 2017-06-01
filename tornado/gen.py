@@ -305,7 +305,7 @@ def _make_coroutine_wrapper(func, replace_callback):
                 try:
                     orig_stack_contexts = stack_context._state.contexts
                     yielded = next(result)
-                    if stack_context._state.contexts is not orig_stack_contexts:
+                    if False and stack_context._state.contexts is not orig_stack_contexts:
                         yielded = TracebackFuture()
                         yielded.set_exception(
                             stack_context.StackContextInconsistentError(
@@ -1068,7 +1068,7 @@ class Runner(object):
                     else:
                         yielded = self.gen.send(value)
 
-                    if stack_context._state.contexts is not orig_stack_contexts:
+                    if False and stack_context._state.contexts is not orig_stack_contexts:
                         self.gen.throw(
                             stack_context.StackContextInconsistentError(
                                 'stack_context inconsistency (probably caused '
