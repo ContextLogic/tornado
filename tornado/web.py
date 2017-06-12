@@ -1012,6 +1012,22 @@ class RequestHandler(object):
     def _ui_method(self, method):
         return lambda *args, **kwargs: method(self, *args, **kwargs)
 
+    def handle_authenticated(self, method, *args, **kwargs):
+        if not self.current_user:
+            if self.request.method in ("GET", "HEAD"):
+                url = self.get_login_url()
+                if "?" not in url:
+                    if urlparse.urlsplit(url).scheme:
+                        # if login url is absolute, make next absolute too
+                        next_url = self.request.full_url()
+                    else:
+                        next_url = self.request.uri
+                    url += "?" + urllib.urlencode(dict(next=next_url))
+                self.redirect(url)
+                return
+            raise HTTPError(403)
+        return method(self, *args, **kwargs)
+
 
 def asynchronous(method):
     """Wrap request handler methods with this if they are asynchronous.
@@ -1661,20 +1677,7 @@ def authenticated(method):
     """Decorate methods with this to require that the user be logged in."""
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
-        if not self.current_user:
-            if self.request.method in ("GET", "HEAD"):
-                url = self.get_login_url()
-                if "?" not in url:
-                    if urlparse.urlsplit(url).scheme:
-                        # if login url is absolute, make next absolute too
-                        next_url = self.request.full_url()
-                    else:
-                        next_url = self.request.uri
-                    url += "?" + urllib.urlencode(dict(next=next_url))
-                self.redirect(url)
-                return
-            raise HTTPError(403)
-        return method(self, *args, **kwargs)
+        return self.handle_authenticated(method, *args, **kwargs)
     return wrapper
 
 
