@@ -362,7 +362,7 @@ class HTTPServerRequest(object):
         self._finish_time = None
 
         self.path, sep, self.query = uri.partition('?')
-        self.arguments = parse_qs_bytes(self.query, keep_blank_values=True)
+        self.arguments = parse_qs_bytes(self.query, keep_blank_values=False)
         self.query_arguments = copy.deepcopy(self.arguments)
         self.body_arguments = {}
 
@@ -726,7 +726,7 @@ def parse_body_arguments(content_type, body, arguments, files, headers=None):
         return
     if content_type.startswith("application/x-www-form-urlencoded"):
         try:
-            uri_arguments = parse_qs_bytes(native_str(body), keep_blank_values=True)
+            uri_arguments = parse_qs_bytes(native_str(body), keep_blank_values=False)
         except Exception as e:
             gen_log.warning('Invalid x-www-form-urlencoded body: %s', e)
             uri_arguments = {}
