@@ -154,7 +154,7 @@ class StackContext(object):
             # Note that this check comes after restoring _state.context
             # so that if it fails things are left in a (relatively)
             # consistent state.
-            if final_contexts is not self.new_contexts:
+            if False and final_contexts is not self.new_contexts:
                 raise StackContextInconsistentError(
                     'stack_context inconsistency (may be caused by yield '
                     'within a "with StackContext" block)')
@@ -202,7 +202,7 @@ class ExceptionStackContext(object):
             final_contexts = _state.contexts
             _state.contexts = self.old_contexts
 
-            if final_contexts is not self.new_contexts:
+            if False and final_contexts is not self.new_contexts:
                 raise StackContextInconsistentError(
                     'stack_context inconsistency (may be caused by yield '
                     'within a "with StackContext" block)')
