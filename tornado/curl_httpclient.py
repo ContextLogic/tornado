@@ -33,10 +33,10 @@ from tornado import stack_context
 
 from tornado.escape import utf8, native_str
 from tornado.httpclient import HTTPResponse, HTTPError, AsyncHTTPClient, main
+from tornado.simple_httpclient import _default_ca_certs
 
 curl_log = logging.getLogger('tornado.curl_httpclient')
 
-_DEFAULT_CA_CERTS = os.path.dirname(__file__) + '/ca-certificates.crt'
 
 class CurlAsyncHTTPClient(AsyncHTTPClient):
     def initialize(self, io_loop, max_clients=10, defaults=None):
@@ -368,7 +368,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         if request.ca_certs is not None:
             curl.setopt(pycurl.CAINFO, request.ca_certs)
         else:
-            curl.setopt(pycurl.CAINFO, _DEFAULT_CA_CERTS)
+            curl.setopt(pycurl.CAINFO, _default_ca_certs())
 
         if request.allow_ipv6 is False:
             # Curl behaves reasonably when DNS resolution gives an ipv6 address
