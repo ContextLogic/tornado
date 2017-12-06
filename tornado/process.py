@@ -237,6 +237,7 @@ def fork_processes_with_watchdog(
     logging.info("Starting %d processes", num_processes)
     children = {}
     pipes = {}
+    events = {}
     last_checkin = {}
     processes = {}
     healthy = set()
@@ -247,13 +248,14 @@ def fork_processes_with_watchdog(
 
     def start_child(i):
         parent_conn, child_conn = multiprocessing.Pipe(duplex=False)
+        mp_event = multiprocessing.Event()
         pid = os.fork()
         if pid == 0:
             # child process
             _reseed_random()
             global _task_id
             _task_id = i
-            return i, child_conn
+            return i, child_conn, mp_event
         else:
             # NOTE [adam Nov/11/12]: bit of a hack... lists behave as
             #      pass-by-reference, so this lets me minimize restructuring
@@ -265,10 +267,11 @@ def fork_processes_with_watchdog(
             children[pid] = i
             last_checkin[pid] = time.time() + grace_period
             pipes[pid] = (parent_conn, child_conn)
+            events[pid] = mp_event
             processes[pid] = psutil.Process(pid)
             logging.info("Started new child process with number %d pid %d",
                 i, pid)
-            return None, None
+            return None, None, None
 
     def cleanup_pid(pid, remove_from_child_pids=True):
         if remove_from_child_pids and pid in child_pids:
@@ -288,6 +291,7 @@ def fork_processes_with_watchdog(
                                   "pid %d",
                                   pid)
         pipes.pop(pid, None)
+        events.pop(pid, None)
         last_checkin.pop(pid, None)
         children.pop(pid, None)
         processes.pop(pid, None)
@@ -300,8 +304,8 @@ def fork_processes_with_watchdog(
         return False
 
     for i in range(num_processes):
-        _id, child_conn = start_child(i)
-        if _id is not None: return _id, child_conn
+        _id, child_conn, event = start_child(i)
+        if _id is not None: return _id, child_conn, event
 
     # for keeping track of which processes we've gracefully killed
     # due to memory issues
@@ -318,8 +322,8 @@ def fork_processes_with_watchdog(
                 alive_children = set(children.values())
                 children_to_spawn = set(range(num_processes)) - alive_children
                 for child_number in children_to_spawn:
-                    _id, child_conn = start_child(child_number)
-                    if _id is not None: return _id, child_conn
+                    _id, child_conn, event = start_child(child_number)
+                    if _id is not None: return _id, child_conn, event
             else:
                 # there's a race where we can spawn children after the tornado
                 # app has received the shutdown signal. This will ensure we will
@@ -369,8 +373,8 @@ def fork_processes_with_watchdog(
                 cleanup_pid(pid)
 
                 if not is_shutdown_callback():
-                    _id, child_conn = start_child(child_number)
-                    if _id is not None: return _id, child_conn
+                    _id, child_conn, event = start_child(child_number)
+                    if _id is not None: return _id, child_conn, event
 
             # reset this
             sent_term = set()
@@ -462,6 +466,7 @@ def fork_processes_with_watchdog(
                              "%d process number %d",
                     pid, child_number)
                 try:
+                    events[pid].set()
                     os.kill(pid, signal.SIGTERM)
                     sent_term.add((pid, child_number))
                     if pid in healthy:
@@ -484,6 +489,7 @@ def fork_processes_with_watchdog(
                 logging.info("Trying to gracefully terminate pid %d process number %d",
                     pid, child_number)
                 try:
+                    events[pid].set()
                     os.kill(pid, signal.SIGTERM)
                     sent_term.add((pid, child_number))
                     if pid in healthy:
@@ -497,7 +503,7 @@ def fork_processes_with_watchdog(
         except Exception:
             logging.exception("Unhandled error in watchdog loop")
             send_stat('infra.frontend.%s.unhandled_exception' % app_name,1)
-    return None, None
+    return None, None, None
 
 def task_id():
     """Returns the current task id, if any.
