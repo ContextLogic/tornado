@@ -360,11 +360,11 @@ def fork_processes_with_watchdog(
 
                     logging.info("Trying to wait on pid %d process number %d",
                                  pid, child_number)
-                    try:
-                        os.waitpid(pid, os.WNOHANG)
-                    except OSError:
-                        logging.exception("Failed to wait on pid %d process number %d",
-                                     pid, child_number)
+                try:
+                    os.waitpid(pid, 0)
+                except OSError:
+                    logging.exception("Failed to wait on pid %d process number %d",
+                                 pid, child_number)
 
                 cleanup_pid(pid)
 
