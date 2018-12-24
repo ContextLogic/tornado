@@ -19,7 +19,7 @@ upload_egg:
     - version_cl="'$version_origin+cl$CI_PIPELINE_ID'"
     - sed -i "s/$version_origin/$version_cl/g" setup.py
     - pip install .
-    - pip list 
+    - pip show tornado
 
   #   # Upload to Wish Pypi
   #   - devpi use $PYPI_SERVER
