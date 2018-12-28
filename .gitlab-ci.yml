@@ -17,7 +17,7 @@ upload_egg:
     # update version to put custom ContextLogic version
     - version_origin=$(sed -n '/.*\(version\).*=.*\".*/p' setup.py | sed '/.*\"\(.*\)\".*/ s//\1/g')
     - version_cl="version + \"+cl$CI_PIPELINE_ID\""
-    - sed -i "s/        version=version,/        version=$version_cl,/g" setup.py
+    - sed -i "s/    version=version,/    version=$version_cl,/g" setup.py
     - pip install .
     - pip show tornado
 
