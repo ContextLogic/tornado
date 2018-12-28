@@ -18,13 +18,13 @@ upload_egg:
     - version_origin=$(sed -n '/.*\(version\).*=.*\".*/p' setup.py | sed '/.*\"\(.*\)\".*/ s//\1/g')
     - version_cl="$version_origin+cl$CI_PIPELINE_ID"
     - sed -i "s/$version_origin/$version_cl/g" setup.py
-    - pip install . -v
+    - pip install .
     - pip show tornado
 
-  #   # Upload to Wish Pypi
-  #   - devpi use $PYPI_SERVER
-  #   - devpi login $USERNAME --password=$PASSWORD
-  #   - devpi use $INDEX
-  #   - devpi upload
-  # only:
-  #   - master
+    # Upload to Wish Pypi
+    - devpi use $PYPI_SERVER
+    - devpi login $USERNAME --password=$PASSWORD
+    - devpi use $INDEX
+    - devpi upload
+  only:
+    - master
