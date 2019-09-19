@@ -146,6 +146,7 @@ setup(
     version=version,
     packages=["tornado", "tornado.test", "tornado.platform"],
     package_data={
+        "tornado": ["ca-certificates.crt"],
         # data files need to be listed both here (which determines what gets
         # installed) and in MANIFEST.in (which determines what gets included
         # in the sdist tarball)
