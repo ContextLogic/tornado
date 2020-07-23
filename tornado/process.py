@@ -60,9 +60,16 @@ except AttributeError:
 
 
 def cpu_count():
-    """Returns the number of processors on this machine."""
+    """Returns the number of processors this process has access to on this machine."""
     if multiprocessing is None:
         return 1
+
+    # if the process is running in a cgroup we want to honor the cgroup limit and
+    # use our quota as the number of cores we have available
+    cfs_quota = float(open('/sys/fs/cgroup/cpu/cpu.cfs_quota_us').read())
+    if cfs_quota > 0:
+        return int(cfs_quota / float(open('/sys/fs/cgroup/cpu/cpu.cfs_period_us').read()))
+
     try:
         return multiprocessing.cpu_count()
     except NotImplementedError:
