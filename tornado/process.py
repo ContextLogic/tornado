@@ -69,9 +69,12 @@ def cpu_count():
 
     # if the process is running in a cgroup we want to honor the cgroup limit and
     # use our quota as the number of cores we have available
-    cfs_quota = float(open('/sys/fs/cgroup/cpu/cpu.cfs_quota_us').read())
-    if cfs_quota > 0:
-        return int(cfs_quota / float(open('/sys/fs/cgroup/cpu/cpu.cfs_period_us').read()))
+    try:
+        cfs_quota = float(open('/sys/fs/cgroup/cpu/cpu.cfs_quota_us').read())
+        if cfs_quota > 0:
+            return int(cfs_quota / float(open('/sys/fs/cgroup/cpu/cpu.cfs_period_us').read()))
+    except IOError:
+        pass
 
     try:
         return multiprocessing.cpu_count()
