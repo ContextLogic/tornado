@@ -32,7 +32,7 @@ from tornado.util import PY3, unicode_type, basestring_type
 
 if PY3:
     from urllib.parse import parse_qs as _parse_qs
-    import html.entities as htmlentitydefs
+    import html.entities
     import urllib.parse as urllib_parse
     chr = chr
 else:

@@ -62,7 +62,7 @@ except ImportError:
 
 
 if PY3:
-    import _thread as thread
+    import _thread
 else:
     import _thread
 
