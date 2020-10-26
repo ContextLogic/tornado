@@ -1,3 +1,5 @@
+from builtins import str
+from builtins import object
 #!/usr/bin/env python
 #
 # Copyright 2009 Facebook

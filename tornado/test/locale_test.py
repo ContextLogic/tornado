@@ -26,7 +26,7 @@ class TranslationLoaderTest(unittest.TestCase):
         self.clear_locale_cache()
 
     def tearDown(self):
-        for k, v in self.saved.items():
+        for k, v in list(self.saved.items()):
             setattr(tornado.locale, k, v)
         self.clear_locale_cache()
 

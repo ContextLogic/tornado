@@ -75,6 +75,12 @@ See the `convert_yielded` function to extend this mechanism.
 
 """
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import map
+from builtins import next
+from builtins import zip
+from builtins import object
 
 import collections
 import functools
@@ -131,7 +137,7 @@ except ImportError:
 if PY3:
     import builtins
 else:
-    import __builtin__ as builtins
+    import builtins as builtins
 
 
 class KeyReuseError(Exception):
@@ -433,7 +439,7 @@ class WaitIterator(object):
                 "You must provide args or kwargs, not both")
 
         if kwargs:
-            self._unfinished = dict((f, k) for (k, f) in kwargs.items())
+            self._unfinished = dict((f, k) for (k, f) in list(kwargs.items()))
             futures = list(kwargs.values())
         else:
             self._unfinished = dict((f, i) for (i, f) in enumerate(args))
@@ -454,7 +460,7 @@ class WaitIterator(object):
         self.current_index = self.current_future = None
         return True
 
-    def next(self):
+    def __next__(self):
         """Returns a `.Future` that will yield the next available result.
 
         Note that this `.Future` will not be the same object as any of
@@ -663,7 +669,7 @@ def _contains_yieldpoint(children):
     and `multi_future`.
     """
     if isinstance(children, dict):
-        return any(isinstance(i, YieldPoint) for i in children.values())
+        return any(isinstance(i, YieldPoint) for i in list(children.values()))
     if isinstance(children, list):
         return any(isinstance(i, YieldPoint) for i in children)
     return False
@@ -747,7 +753,7 @@ class MultiYieldPoint(YieldPoint):
         self.keys = None
         if isinstance(children, dict):
             self.keys = list(children.keys())
-            children = children.values()
+            children = list(children.values())
         self.children = []
         for i in children:
             if not isinstance(i, YieldPoint):
@@ -785,7 +791,7 @@ class MultiYieldPoint(YieldPoint):
         if exc_info is not None:
             raise_exc_info(exc_info)
         if self.keys is not None:
-            return dict(zip(self.keys, result_list))
+            return dict(list(zip(self.keys, result_list)))
         else:
             return list(result_list)
 
@@ -808,7 +814,7 @@ def multi_future(children, quiet_exceptions=()):
     """
     if isinstance(children, dict):
         keys = list(children.keys())
-        children = children.values()
+        children = list(children.values())
     else:
         keys = None
     children = list(map(convert_yielded, children))
@@ -835,7 +841,7 @@ def multi_future(children, quiet_exceptions=()):
                         future.set_exc_info(sys.exc_info())
             if not future.done():
                 if keys is not None:
-                    future.set_result(dict(zip(keys, result_list)))
+                    future.set_result(dict(list(zip(keys, result_list))))
                 else:
                     future.set_result(result_list)
 

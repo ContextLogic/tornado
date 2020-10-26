@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import absolute_import, division, print_function
+from builtins import str
 
 from tornado import gen
 from tornado.log import app_log

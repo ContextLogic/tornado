@@ -19,6 +19,8 @@ the server into multiple processes and managing subprocesses.
 """
 
 from __future__ import absolute_import, division, print_function
+from builtins import range
+from builtins import object
 
 import errno
 import logging
@@ -83,7 +85,7 @@ def _reseed_random():
     # random.seed (at least as of python 2.6).  If os.urandom is not
     # available, we mix in the pid in addition to a timestamp.
     try:
-        seed = long(hexlify(os.urandom(16)), 16)
+        seed = int(hexlify(os.urandom(16)), 16)
     except NotImplementedError:
         seed = int(time.time() * 1000) ^ os.getpid()
     random.seed(seed)
@@ -328,7 +330,7 @@ def fork_processes_with_watchdog(
                 # there's a race where we can spawn children after the tornado
                 # app has received the shutdown signal. This will ensure we will
                 # eventually shutdown. Should happen very rarely
-                for pid, child_number in children.iteritems():
+                for pid, child_number in children.items():
                     try:
                         os.kill(pid, signal.SIGTERM)
                         if pid in healthy:
@@ -382,7 +384,7 @@ def fork_processes_with_watchdog(
             # we no longer want to respawn child processes that have died
             # also detect if the child has exited on its own (died on startup)
             to_cleanup = set()
-            for pid, _ in children.iteritems():
+            for pid, _ in children.items():
                 try:
                     _resp_pid, status = os.waitpid(pid, os.WNOHANG)
                 except OSError as e:
@@ -402,7 +404,7 @@ def fork_processes_with_watchdog(
             # If we have child processes, see if they're up and running
             to_reap = set()
             exceed_mem = set()
-            for pid, child_number in children.iteritems():
+            for pid, child_number in children.items():
                 parent_pipe, child_pipe = pipes[pid]
 
                 got_msg = False

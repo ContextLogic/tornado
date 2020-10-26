@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Benchmark for stack_context functionality."""
 from __future__ import print_function
+from builtins import object
 import collections
 import contextlib
 import functools

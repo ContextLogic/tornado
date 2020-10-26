@@ -4,6 +4,9 @@
 # https://github.com/mitsuhiko/jinja2/blob/master/examples/bench.py
 
 from __future__ import print_function
+from __future__ import division
+from builtins import range
+from past.utils import old_div
 import sys
 from timeit import Timer
 
@@ -61,7 +64,7 @@ def main():
         print(tmpl.code)
         sys.exit(0)
     t = Timer(render)
-    results = t.timeit(options.num) / options.num
+    results = old_div(t.timeit(options.num), options.num)
     print('%0.3f ms per iteration' % (results*1000))
 
 if __name__ == '__main__':

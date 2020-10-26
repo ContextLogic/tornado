@@ -1,3 +1,5 @@
+from builtins import str
+from builtins import range
 #!/usr/bin/env python
 #
 # A simple benchmark of tornado's HTTP stack.
@@ -60,7 +62,7 @@ def main():
     parse_command_line()
     if options.ioloop:
         IOLoop.configure(options.ioloop)
-    for i in xrange(options.num_runs):
+    for i in range(options.num_runs):
         run()
 
 def run():

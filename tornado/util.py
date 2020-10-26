@@ -11,6 +11,9 @@ and `.Resolver`.
 """
 
 from __future__ import absolute_import, division, print_function
+from builtins import range
+from past.builtins import basestring
+from builtins import object
 
 import array
 import atexit
@@ -40,7 +43,7 @@ if PY3:
     basestring_type = str
 else:
     # The names unicode and basestring don't exist in py3 so silence flake8.
-    unicode_type = unicode  # noqa
+    unicode_type = str  # noqa
     basestring_type = basestring  # noqa
 
 
@@ -445,7 +448,7 @@ def _websocket_mask_python(mask, data):
     """
     mask_arr = array.array("B", mask)
     unmasked_arr = array.array("B", data)
-    for i in xrange(len(data)):
+    for i in range(len(data)):
         unmasked_arr[i] = unmasked_arr[i] ^ mask_arr[i % 4]
     if PY3:
         # tostring was deprecated in py32.  It hasn't been removed,

@@ -7,6 +7,8 @@ HTTP POST, or streams in the raw data of a single file in an HTTP PUT.
 
 See file_uploader.py in this directory for code that uploads files in this format.
 """
+from future import standard_library
+standard_library.install_aliases()
 
 import logging
 
@@ -14,7 +16,7 @@ try:
     from urllib.parse import unquote
 except ImportError:
     # Python 2.
-    from urllib import unquote
+    from urllib.parse import unquote
 
 import tornado.ioloop
 import tornado.web
@@ -23,7 +25,7 @@ from tornado import options
 
 class POSTHandler(tornado.web.RequestHandler):
     def post(self):
-        for field_name, files in self.request.files.items():
+        for field_name, files in list(self.request.files.items()):
             for info in files:
                 filename, content_type = info['filename'], info['content_type']
                 body = info['body']

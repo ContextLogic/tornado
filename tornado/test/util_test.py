@@ -1,5 +1,7 @@
 # coding: utf-8
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
 import re
 import sys
 import datetime
@@ -12,7 +14,7 @@ from tornado.test.util import unittest
 if PY3:
     from io import StringIO
 else:
-    from cStringIO import StringIO
+    from io import StringIO
 
 
 class RaiseExcInfoTest(unittest.TestCase):

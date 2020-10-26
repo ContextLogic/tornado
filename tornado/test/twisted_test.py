@@ -18,6 +18,9 @@ Unittest for the twisted-style reactor.
 """
 
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
 
 import logging
 import os
@@ -67,7 +70,7 @@ except ImportError:
 if PY3:
     import _thread as thread
 else:
-    import thread
+    import _thread
 
 
 skipIfNoTwisted = unittest.skipUnless(have_twisted,
@@ -91,7 +94,7 @@ def save_signal_handlers():
 
 
 def restore_signal_handlers(saved):
-    for sig, handler in saved.items():
+    for sig, handler in list(saved.items()):
         signal.signal(sig, handler)
 
 
@@ -177,20 +180,20 @@ class ReactorTwoCallLaterTest(ReactorTestCase):
 class ReactorCallFromThreadTest(ReactorTestCase):
     def setUp(self):
         super(ReactorCallFromThreadTest, self).setUp()
-        self._mainThread = thread.get_ident()
+        self._mainThread = _thread.get_ident()
 
     def tearDown(self):
         self._thread.join()
         super(ReactorCallFromThreadTest, self).tearDown()
 
     def _newThreadRun(self):
-        self.assertNotEqual(self._mainThread, thread.get_ident())
+        self.assertNotEqual(self._mainThread, _thread.get_ident())
         if hasattr(self._thread, 'ident'):  # new in python 2.6
-            self.assertEqual(self._thread.ident, thread.get_ident())
+            self.assertEqual(self._thread.ident, _thread.get_ident())
         self._reactor.callFromThread(self._fnCalledFromThread)
 
     def _fnCalledFromThread(self):
-        self.assertEqual(self._mainThread, thread.get_ident())
+        self.assertEqual(self._mainThread, _thread.get_ident())
         self._reactor.stop()
 
     def _whenRunningCallback(self):
@@ -206,10 +209,10 @@ class ReactorCallFromThreadTest(ReactorTestCase):
 class ReactorCallInThread(ReactorTestCase):
     def setUp(self):
         super(ReactorCallInThread, self).setUp()
-        self._mainThread = thread.get_ident()
+        self._mainThread = _thread.get_ident()
 
     def _fnCalledInThread(self, *args, **kwargs):
-        self.assertNotEqual(thread.get_ident(), self._mainThread)
+        self.assertNotEqual(_thread.get_ident(), self._mainThread)
         self._reactor.callFromThread(lambda: self._reactor.stop())
 
     def _whenRunningCallback(self):
@@ -604,7 +607,7 @@ if have_twisted:
         # reconcile the two), and partly due to what looks like a packaging
         # error (process_cli.py missing). For now, just skip it.
         del twisted_tests['twisted.internet.test.test_process.ProcessTestsBuilder']
-    for test_name, blacklist in twisted_tests.items():
+    for test_name, blacklist in list(twisted_tests.items()):
         try:
             test_class = import_object(test_name)
         except (ImportError, AttributeError):

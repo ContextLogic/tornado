@@ -5,6 +5,9 @@
 # and old-style (@engine and Tasks) coroutines.
 
 from __future__ import print_function
+from __future__ import division
+from builtins import range
+from past.utils import old_div
 from timeit import Timer
 
 from tornado import gen
@@ -38,10 +41,10 @@ def c1():
 def main():
     parse_command_line()
     t = Timer(e1)
-    results = t.timeit(options.num) / options.num
+    results = old_div(t.timeit(options.num), options.num)
     print('engine: %0.3f ms per iteration' % (results * 1000))
     t = Timer(c1)
-    results = t.timeit(options.num) / options.num
+    results = old_div(t.timeit(options.num), options.num)
     print('coroutine: %0.3f ms per iteration' % (results * 1000))
 
 if __name__ == '__main__':

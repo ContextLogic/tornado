@@ -66,6 +66,10 @@ Example usage for Google OAuth:
 """
 
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import object
 
 import base64
 import binascii
@@ -89,7 +93,7 @@ if PY3:
     import urllib.parse as urllib_parse
     long = int
 else:
-    import urlparse
+    import urllib.parse
     import urllib as urllib_parse
 
 
@@ -180,7 +184,7 @@ class OpenIdMixin(object):
         The result of this method will generally be used to set a cookie.
         """
         # Verify the OpenID response via direct request to the OP
-        args = dict((k, v[-1]) for k, v in self.request.arguments.items())
+        args = dict((k, v[-1]) for k, v in list(self.request.arguments.items()))
         args["openid.mode"] = u"check_authentication"
         url = self._OPENID_ENDPOINT
         if http_client is None:
@@ -190,7 +194,7 @@ class OpenIdMixin(object):
             method="POST", body=urllib_parse.urlencode(args))
 
     def _openid_args(self, callback_uri, ax_attrs=[], oauth_scope=None):
-        url = urlparse.urljoin(self.request.full_url(), callback_uri)
+        url = urllib.parse.urljoin(self.request.full_url(), callback_uri)
         args = {
             "openid.ns": "http://specs.openid.net/auth/2.0",
             "openid.claimed_id":
@@ -198,7 +202,7 @@ class OpenIdMixin(object):
             "openid.identity":
             "http://specs.openid.net/auth/2.0/identifier_select",
             "openid.return_to": url,
-            "openid.realm": urlparse.urljoin(url, '/'),
+            "openid.realm": urllib.parse.urljoin(url, '/'),
             "openid.mode": "checkid_setup",
         }
         if ax_attrs:
@@ -257,7 +261,7 @@ class OpenIdMixin(object):
                 return u""
             prefix = "openid." + ax_ns + ".type."
             ax_name = None
-            for name in self.request.arguments.keys():
+            for name in list(self.request.arguments.keys()):
                 if self.get_argument(name) == uri and name.startswith(prefix):
                     part = name[len(prefix):]
                     ax_name = "openid." + ax_ns + ".value." + part
@@ -417,7 +421,7 @@ class OAuthMixin(object):
             if callback_uri == "oob":
                 args["oauth_callback"] = "oob"
             elif callback_uri:
-                args["oauth_callback"] = urlparse.urljoin(
+                args["oauth_callback"] = urllib.parse.urljoin(
                     self.request.full_url(), callback_uri)
             if extra_params:
                 args.update(extra_params)
@@ -442,7 +446,7 @@ class OAuthMixin(object):
             callback()
             return
         elif callback_uri:
-            args["oauth_callback"] = urlparse.urljoin(
+            args["oauth_callback"] = urllib.parse.urljoin(
                 self.request.full_url(), callback_uri)
         self.redirect(authorize_url + "?" + urllib_parse.urlencode(args))
         callback()
@@ -1091,7 +1095,7 @@ def _oauth_signature(consumer_token, method, url, parameters={}, token=None):
 
     See http://oauth.net/core/1.0/#signing_process
     """
-    parts = urlparse.urlparse(url)
+    parts = urllib.parse.urlparse(url)
     scheme, netloc, path = parts[:3]
     normalized_url = scheme.lower() + "://" + netloc.lower() + path
 
@@ -1115,7 +1119,7 @@ def _oauth10a_signature(consumer_token, method, url, parameters={}, token=None):
 
     See http://oauth.net/core/1.0a/#signing_process
     """
-    parts = urlparse.urlparse(url)
+    parts = urllib.parse.urlparse(url)
     scheme, netloc, path = parts[:3]
     normalized_url = scheme.lower() + "://" + netloc.lower() + path
 
@@ -1145,7 +1149,7 @@ def _oauth_parse_response(body):
     # have never seen anyone use non-ascii.  Leave the response in a byte
     # string for python 2, and use utf8 on python 3.
     body = escape.native_str(body)
-    p = urlparse.parse_qs(body, keep_blank_values=False)
+    p = urllib.parse.parse_qs(body, keep_blank_values=False)
     token = dict(key=p["oauth_token"][0], secret=p["oauth_token_secret"][0])
 
     # Add the extra parameters the Provider included to the token

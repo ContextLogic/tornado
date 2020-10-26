@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from past.builtins import basestring
 
 import datetime
 import os
@@ -12,7 +16,7 @@ from tornado.test.util import unittest
 if PY3:
     from io import StringIO
 else:
-    from cStringIO import StringIO
+    from io import StringIO
 
 try:
     # py33+
@@ -262,7 +266,7 @@ class OptionsTest(unittest.TestCase):
         options.define('with_underscore', group='g')
         all_options = ['help', 'with-dash', 'with_underscore']
         self.assertEqual(sorted(options), all_options)
-        self.assertEqual(sorted(k for (k, v) in options.items()), all_options)
+        self.assertEqual(sorted(k for (k, v) in list(options.items())), all_options)
         self.assertEqual(sorted(options.as_dict().keys()), all_options)
 
         self.assertEqual(sorted(options.group_dict('g')),

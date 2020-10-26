@@ -3,6 +3,7 @@
 
 
 from __future__ import absolute_import, division, print_function
+from builtins import str
 from tornado.httputil import url_concat, parse_multipart_form_data, HTTPHeaders, format_timestamp, HTTPServerRequest, parse_request_start_line, parse_cookie
 from tornado.escape import utf8, native_str
 from tornado.log import gen_log
@@ -451,7 +452,7 @@ class ParseCookieTest(unittest.TestCase):
         """
         # Chunks without an equals sign appear as unnamed values per
         # https://bugzilla.mozilla.org/show_bug.cgi?id=169091
-        self.assertIn('django_language', parse_cookie('abc=def; unnamed; django_language=en').keys())
+        self.assertIn('django_language', list(parse_cookie('abc=def; unnamed; django_language=en').keys()))
         # Even a double quote may be an unamed value.
         self.assertEqual(parse_cookie('a=b; "; c=d'), {'a': 'b', '': '"', 'c': 'd'})
         # Spaces in names and values, and an equals sign in values.

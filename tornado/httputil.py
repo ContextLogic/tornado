@@ -21,6 +21,12 @@ via `tornado.web.RequestHandler.request`.
 """
 
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import next
+from builtins import chr
+from builtins import str
+from builtins import object
 
 import calendar
 import collections
@@ -40,10 +46,10 @@ if PY3:
     from http.client import responses
     from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 else:
-    import Cookie
-    from httplib import responses
-    from urllib import urlencode
-    from urlparse import urlparse, urlunparse, parse_qsl
+    import http.cookies
+    from http.client import responses
+    from urllib.parse import urlencode
+    from urllib.parse import urlparse, urlunparse, parse_qsl
 
 
 # responses is unused in this file, but we re-export it to other files.
@@ -170,7 +176,7 @@ class HTTPHeaders(collections.MutableMapping):
         If a header has multiple values, multiple pairs will be
         returned with the same name.
         """
-        for name, values in self._as_list.items():
+        for name, values in list(self._as_list.items()):
             for value in values:
                 yield (name, value)
 
@@ -380,14 +386,14 @@ class HTTPServerRequest(object):
     def cookies(self):
         """A dictionary of Cookie.Morsel objects."""
         if not hasattr(self, "_cookies"):
-            self._cookies = Cookie.SimpleCookie()
+            self._cookies = http.cookies.SimpleCookie()
             if "Cookie" in self.headers:
                 try:
                     parsed = parse_cookie(self.headers["Cookie"])
                 except Exception:
                     pass
                 else:
-                    for k, v in parsed.items():
+                    for k, v in list(parsed.items()):
                         try:
                             self._cookies[k] = v
                         except Exception:
@@ -461,7 +467,7 @@ class HTTPServerRequest(object):
             self.body_arguments, self.files,
             self.headers)
 
-        for k, v in self.body_arguments.items():
+        for k, v in list(self.body_arguments.items()):
             self.arguments.setdefault(k, []).extend(v)
 
     def __repr__(self):
@@ -608,7 +614,7 @@ def url_concat(url, args):
     parsed_url = urlparse(url)
     if isinstance(args, dict):
         parsed_query = parse_qsl(parsed_url.query, keep_blank_values=True)
-        parsed_query.extend(args.items())
+        parsed_query.extend(list(args.items()))
     elif isinstance(args, list) or isinstance(args, tuple):
         parsed_query = parse_qsl(parsed_url.query, keep_blank_values=True)
         parsed_query.extend(args)
@@ -730,7 +736,7 @@ def parse_body_arguments(content_type, body, arguments, files, headers=None):
         except Exception as e:
             gen_log.warning('Invalid x-www-form-urlencoded body: %s', e)
             uri_arguments = {}
-        for name, values in uri_arguments.items():
+        for name, values in list(uri_arguments.items()):
             if values:
                 arguments.setdefault(name, []).extend(values)
     elif content_type.startswith("multipart/form-data"):

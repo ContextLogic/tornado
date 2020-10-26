@@ -15,6 +15,7 @@
 # under the License.
 
 from __future__ import absolute_import, division, print_function
+from builtins import object
 
 from contextlib import closing
 import os
@@ -197,7 +198,7 @@ class ConnectorTest(AsyncTestCase):
     def tearDown(self):
         # Unless explicitly checked (and popped) in the test, we shouldn't
         # be closing any streams
-        for stream in self.streams.values():
+        for stream in list(self.streams.values()):
             self.assertFalse(stream.closed)
         super(ConnectorTest, self).tearDown()
 

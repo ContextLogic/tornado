@@ -1,4 +1,6 @@
 from __future__ import absolute_import, division, print_function
+from builtins import str
+from builtins import range
 
 import os
 import sys
@@ -426,7 +428,7 @@ raw: {% raw name %}""",
   }}{% end
 %}""",
                              })
-        self.assertEqual(loader.load("foo.txt").generate(items=range(5)),
+        self.assertEqual(loader.load("foo.txt").generate(items=list(range(5))),
                          b"0, 1, 2, 3, 4")
 
     def test_whitespace_by_filename(self):

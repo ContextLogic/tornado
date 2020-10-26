@@ -22,6 +22,7 @@ as well as some utility functions for interacting with the
 `concurrent.futures` package.
 """
 from __future__ import absolute_import, division, print_function
+from builtins import object
 
 import functools
 import platform

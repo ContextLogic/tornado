@@ -68,6 +68,7 @@ Here are a few rules of thumb for when it's necessary:
 """
 
 from __future__ import absolute_import, division, print_function
+from builtins import object
 
 import sys
 import threading

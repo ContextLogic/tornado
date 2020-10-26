@@ -20,11 +20,13 @@ To run under cygwin (which must be installed separately), run
   cd /cygdrive/e; python -m tornado.test.runtests
 """
 from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
 
 import os
 import subprocess
 import sys
-import urllib
+import urllib.request, urllib.parse, urllib.error
 
 TMPDIR = r'c:\tornado_bootstrap'
 
@@ -43,7 +45,7 @@ def download_to_cache(url, local_name=None):
         local_name = url.split('/')[-1]
     filename = os.path.join(TMPDIR, local_name)
     if not os.path.exists(filename):
-        data = urllib.urlopen(url).read()
+        data = urllib.request.urlopen(url).read()
         with open(filename, 'wb') as f:
             f.write(data)
     return filename

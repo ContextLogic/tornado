@@ -27,6 +27,11 @@ In addition to I/O events, the `IOLoop` can also schedule time-based events.
 """
 
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import next
+from builtins import range
+from builtins import object
 
 import collections
 import datetime
@@ -59,7 +64,7 @@ except ImportError:
 if PY3:
     import _thread as thread
 else:
-    import thread
+    import _thread
 
 
 _POLL_TIMEOUT = 3600.0
@@ -759,7 +764,7 @@ class PollIOLoop(IOLoop):
             return
         old_current = getattr(IOLoop._current, "instance", None)
         IOLoop._current.instance = self
-        self._thread_ident = thread.get_ident()
+        self._thread_ident = _thread.get_ident()
         self._running = True
 
         # signal.set_wakeup_fd closes a race condition in event loops:
@@ -937,7 +942,7 @@ class PollIOLoop(IOLoop):
         # from signal handlers because deque.append is atomic.
         self._callbacks.append(functools.partial(
             stack_context.wrap(callback), *args, **kwargs))
-        if thread.get_ident() != self._thread_ident:
+        if _thread.get_ident() != self._thread_ident:
             # This will write one byte but Waker.consume() reads many
             # at once, so it's ok to write even when not strictly
             # necessary.

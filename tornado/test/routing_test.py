@@ -12,6 +12,7 @@
 
 
 from __future__ import absolute_import, division, print_function
+from builtins import str
 
 from tornado.httputil import HTTPHeaders, HTTPMessageDelegate, HTTPServerConnectionDelegate, ResponseStartLine
 from tornado.routing import HostMatches, PathMatches, ReversibleRouter, Router, Rule, RuleRouter

@@ -1,3 +1,4 @@
+from builtins import range
 #!/usr/bin/env python
 #
 # Downloads a large file in chunked encoding with both curl and simple clients
@@ -16,7 +17,7 @@ define('chunk_size', default=2048)
 
 class ChunkHandler(RequestHandler):
     def get(self):
-        for i in xrange(options.num_chunks):
+        for i in range(options.num_chunks):
             self.write('A' * options.chunk_size)
             self.flush()
         self.finish()

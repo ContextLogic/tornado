@@ -40,6 +40,8 @@ the `Locale.translate` method will simply return the original string.
 """
 
 from __future__ import absolute_import, division, print_function
+from builtins import str
+from builtins import object
 
 import codecs
 import csv

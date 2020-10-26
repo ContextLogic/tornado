@@ -21,6 +21,9 @@ have crept in over time.
 """
 
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import chr
 
 import json
 import re
@@ -31,10 +34,10 @@ if PY3:
     from urllib.parse import parse_qs as _parse_qs
     import html.entities as htmlentitydefs
     import urllib.parse as urllib_parse
-    unichr = chr
+    chr = chr
 else:
-    from urlparse import parse_qs as _parse_qs
-    import htmlentitydefs
+    from urllib.parse import parse_qs as _parse_qs
+    import html.entities
     import urllib as urllib_parse
 
 try:
@@ -176,7 +179,7 @@ else:
         result = _parse_qs(qs, keep_blank_values, strict_parsing,
                            encoding='latin1', errors='strict')
         encoded = {}
-        for k, v in result.items():
+        for k, v in list(result.items()):
             encoded[k] = [i.encode('latin1') for i in v]
         return encoded
 
@@ -256,7 +259,7 @@ def recursive_unicode(obj):
     Supports lists, tuples, and dictionaries.
     """
     if isinstance(obj, dict):
-        return dict((recursive_unicode(k), recursive_unicode(v)) for (k, v) in obj.items())
+        return dict((recursive_unicode(k), recursive_unicode(v)) for (k, v) in list(obj.items()))
     elif isinstance(obj, list):
         return list(recursive_unicode(i) for i in obj)
     elif isinstance(obj, tuple):
@@ -377,9 +380,9 @@ def _convert_entity(m):
     if m.group(1) == "#":
         try:
             if m.group(2)[:1].lower() == 'x':
-                return unichr(int(m.group(2)[1:], 16))
+                return chr(int(m.group(2)[1:], 16))
             else:
-                return unichr(int(m.group(2)))
+                return chr(int(m.group(2)))
         except ValueError:
             return "&#%s;" % m.group(2)
     try:
@@ -390,8 +393,8 @@ def _convert_entity(m):
 
 def _build_unicode_map():
     unicode_map = {}
-    for name, value in htmlentitydefs.name2codepoint.items():
-        unicode_map[name] = unichr(value)
+    for name, value in list(html.entities.name2codepoint.items()):
+        unicode_map[name] = chr(value)
     return unicode_map
 
 

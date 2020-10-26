@@ -1,5 +1,6 @@
 """Lowest-common-denominator implementations of platform functionality."""
 from __future__ import absolute_import, division, print_function
+from builtins import range
 
 import errno
 import socket

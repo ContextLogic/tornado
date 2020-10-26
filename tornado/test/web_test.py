@@ -1,4 +1,9 @@
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import range
+from builtins import object
 from tornado.concurrent import Future
 from tornado import gen
 from tornado.escape import json_decode, utf8, to_unicode, recursive_unicode, native_str, to_basestring
@@ -475,7 +480,7 @@ class TypeCheckHandler(RequestHandler):
         # data, but regular cookies are native strings.
         if list(self.cookies.keys()) != ['asdf']:
             raise Exception("unexpected values for cookie keys: %r" %
-                            self.cookies.keys())
+                            list(self.cookies.keys()))
         self.check_type('get_secure_cookie', self.get_secure_cookie('asdf'), bytes)
         self.check_type('get_cookie', self.get_cookie('asdf'), str)
 

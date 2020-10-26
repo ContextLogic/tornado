@@ -17,6 +17,7 @@
 
 Authentication, error handling, etc are left as an exercise for the reader :)
 """
+from builtins import str
 
 import logging
 import tornado.escape

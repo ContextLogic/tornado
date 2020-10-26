@@ -176,6 +176,8 @@ For more information on application-level routing see docs for `~.web.Applicatio
 """
 
 from __future__ import absolute_import, division, print_function
+from builtins import str
+from builtins import object
 
 import re
 from functools import partial
@@ -521,7 +523,7 @@ class PathMatches(Matcher):
         if self.regex.groupindex:
             path_kwargs = dict(
                 (str(k), _unquote_or_none(v))
-                for (k, v) in match.groupdict().items())
+                for (k, v) in list(match.groupdict().items()))
         else:
             path_args = [_unquote_or_none(s) for s in match.groups()]
 

@@ -16,6 +16,7 @@
 
 """A non-blocking, single-threaded TCP server."""
 from __future__ import absolute_import, division, print_function
+from builtins import object
 
 import errno
 import os
@@ -232,7 +233,7 @@ class TCPServer(object):
         if self._stopped:
             return
         self._stopped = True
-        for fd, sock in self._sockets.items():
+        for fd, sock in list(self._sockets.items()):
             assert sock.fileno() == fd
             self.io_loop.remove_handler(fd)
             sock.close()

@@ -197,6 +197,9 @@ if you need to include a literal ``{{``, ``{%``, or ``{#`` in the output.
 """
 
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
 
 import datetime
 import linecache
@@ -212,7 +215,7 @@ from tornado.util import ObjectDict, exec_in, unicode_type, PY3
 if PY3:
     from io import StringIO
 else:
-    from cStringIO import StringIO
+    from io import StringIO
 
 _DEFAULT_AUTOESCAPE = "xhtml_escape"
 _UNSET = object()

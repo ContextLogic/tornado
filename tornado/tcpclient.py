@@ -17,6 +17,8 @@
 """A non-blocking TCP connection factory.
 """
 from __future__ import absolute_import, division, print_function
+from builtins import next
+from builtins import object
 
 import functools
 import socket

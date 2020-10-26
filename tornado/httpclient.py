@@ -39,6 +39,7 @@ To select ``curl_httpclient``, call `AsyncHTTPClient.configure` at startup::
 """
 
 from __future__ import absolute_import, division, print_function
+from builtins import object
 
 import functools
 import time

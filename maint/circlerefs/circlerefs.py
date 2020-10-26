@@ -8,6 +8,7 @@ increases memory footprint and CPU overhead, so we try to eliminate
 circular references created by normal operation.
 """
 from __future__ import print_function
+from builtins import map
 
 import gc
 import traceback

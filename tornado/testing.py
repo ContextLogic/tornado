@@ -11,6 +11,10 @@
 """
 
 from __future__ import absolute_import, division, print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import object
 
 try:
     from tornado import gen
@@ -45,7 +49,7 @@ import sys
 if PY3:
     from io import StringIO
 else:
-    from cStringIO import StringIO
+    from io import StringIO
 
 try:
     from collections.abc import Generator as GeneratorType  # type: ignore

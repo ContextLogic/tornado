@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import range
 import time
 from datetime import timedelta
 
 try:
-    from HTMLParser import HTMLParser
-    from urlparse import urljoin, urldefrag
+    from html.parser import HTMLParser
+    from urllib.parse import urljoin, urldefrag
 except ImportError:
     from html.parser import HTMLParser
     from urllib.parse import urljoin, urldefrag

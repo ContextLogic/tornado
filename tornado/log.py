@@ -146,13 +146,13 @@ class LogFormatter(logging.Formatter):
                 if (3, 0) < sys.version_info < (3, 2, 3):
                     fg_color = unicode_type(fg_color, "ascii")
 
-                for levelno, code in colors.items():
+                for levelno, code in list(colors.items()):
                     self._colors[levelno] = unicode_type(curses.tparm(fg_color, code), "ascii")
                 self._normal = unicode_type(curses.tigetstr("sgr0"), "ascii")
             else:
                 # If curses is not present (currently we'll only get here for
                 # colorama on windows), assume hard-coded ANSI color codes.
-                for levelno, code in colors.items():
+                for levelno, code in list(colors.items()):
                     self._colors[levelno] = '\033[2;3%dm' % code
                 self._normal = '\033[0m'
         else:
