@@ -389,7 +389,7 @@ class ArgReplacer(object):
                 # getargspec that we need here. Note that for static
                 # functions the @cython.binding(True) decorator must
                 # be used (for methods it works out of the box).
-                code = func.func_code  # type: ignore
+                code = func.__code__  # type: ignore
                 return code.co_varnames[:code.co_argcount]
             raise
 

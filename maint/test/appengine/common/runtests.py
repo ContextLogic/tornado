@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import with_statement
+from __future__ import print_function
 
 import contextlib
 import errno
@@ -39,7 +40,7 @@ if __name__ == "__main__":
             raise Exception("Server didn't start listening")
 
         resp = urllib2.urlopen("http://localhost:%d/" % port)
-        print resp.read()
+        print(resp.read())
     finally:
         # dev_appserver sometimes ignores SIGTERM (especially on 2.5),
         # so try a few times to kill it.

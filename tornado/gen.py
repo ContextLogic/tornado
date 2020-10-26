@@ -490,7 +490,7 @@ class WaitIterator(object):
         if self.done():
             # Lookup by name to silence pyflakes on older versions.
             raise getattr(builtins, 'StopAsyncIteration')()
-        return self.next()
+        return next(self)
 
 
 class YieldPoint(object):

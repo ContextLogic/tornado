@@ -3,6 +3,7 @@
 # A simple benchmark of tornado template rendering, based on
 # https://github.com/mitsuhiko/jinja2/blob/master/examples/bench.py
 
+from __future__ import print_function
 import sys
 from timeit import Timer
 

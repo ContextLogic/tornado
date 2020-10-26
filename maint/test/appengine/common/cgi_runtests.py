@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import sys
 import unittest
 
@@ -40,13 +41,13 @@ def all():
     return unittest.defaultTestLoader.loadTestsFromNames(TEST_MODULES)
 
 def main():
-    print "Content-Type: text/plain\r\n\r\n",
+    print("Content-Type: text/plain\r\n\r\n", end=' ')
 
     try:
         unittest.main(defaultTest='all', argv=sys.argv[:1])
-    except SystemExit, e:
+    except SystemExit as e:
         if e.code == 0:
-            print "PASS"
+            print("PASS")
         else:
             raise
 

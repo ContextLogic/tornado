@@ -1311,7 +1311,7 @@ class WaitIteratorTest(AsyncTestCase):
         g = gen.WaitIterator(f1, f2, f3)
         i = 0
         while not g.done():
-            r = yield g.next()
+            r = yield next(g)
             # Order is not guaranteed, but the current implementation
             # preserves ordering of already-done Futures.
             if i == 0:
@@ -1334,7 +1334,7 @@ class WaitIteratorTest(AsyncTestCase):
         dg = gen.WaitIterator(f1=f1, f2=f2)
 
         while not dg.done():
-            dr = yield dg.next()
+            dr = yield next(dg)
             if dg.current_index == "f1":
                 self.assertTrue(dg.current_future == f1 and dr == 24,
                                 "WaitIterator dict status incorrect")
@@ -1373,7 +1373,7 @@ class WaitIteratorTest(AsyncTestCase):
         i = 0
         while not g.done():
             try:
-                r = yield g.next()
+                r = yield next(g)
             except ZeroDivisionError:
                 self.assertIs(g.current_future, futures[0],
                               'exception future invalid')
@@ -1435,7 +1435,7 @@ class WaitIteratorTest(AsyncTestCase):
         # WaitIterator uses weak references internally to improve GC
         # performance, this used to cause problems.
         yield gen.with_timeout(datetime.timedelta(seconds=0.1),
-                               gen.WaitIterator(gen.sleep(0)).next())
+                               next(gen.WaitIterator(gen.sleep(0))))
 
 
 class RunnerGCTest(AsyncTestCase):

@@ -4,6 +4,7 @@
 # Runs in two modes, testing new-style (@coroutine and Futures)
 # and old-style (@engine and Tasks) coroutines.
 
+from __future__ import print_function
 from timeit import Timer
 
 from tornado import gen
