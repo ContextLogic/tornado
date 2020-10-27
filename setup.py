@@ -132,6 +132,8 @@ if setuptools is not None:
         install_requires.append('ordereddict')
     if sys.version_info < (2, 7, 9):
         install_requires.append('backports.ssl_match_hostname')
+    if sys.version_info < (3, 0):
+        install_requires.append('future')
     if sys.version_info < (3, 4):
         install_requires.append('singledispatch')
         # Certifi is also optional on 2.7.9+, although making our dependencies
