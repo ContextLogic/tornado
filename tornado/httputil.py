@@ -42,7 +42,7 @@ from tornado.log import gen_log
 from tornado.util import ObjectDict, PY3
 
 if PY3:
-    import http.cookies as Cookie
+    import http.cookies
     from http.client import responses
     from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 else:
@@ -1012,14 +1012,18 @@ def parse_cookie(cookie):
 
     .. versionadded:: 4.4.2
     """
+    if PY3:
+        str_type = str
+    else:
+        from __builtin__ import str as str_type
     cookiedict = {}
-    for chunk in cookie.split(str(';')):
-        if str('=') in chunk:
-            key, val = chunk.split(str('='), 1)
+    for chunk in cookie.split(str_type(';')):
+        if str_type('=') in chunk:
+            key, val = chunk.split(str_type('='), 1)
         else:
             # Assume an empty name per
             # https://bugzilla.mozilla.org/show_bug.cgi?id=169091
-            key, val = str(''), chunk
+            key, val = str_type(''), chunk
         key, val = key.strip(), val.strip()
         if key or val:
             # unquote using Python's algorithm.

@@ -104,7 +104,7 @@ from tornado.util import (ObjectDict, raise_exc_info,
 url = URLSpec
 
 if PY3:
-    import http.cookies as Cookie
+    import http.cookies
     import urllib.parse as urlparse
     from urllib.parse import urlencode
 else:

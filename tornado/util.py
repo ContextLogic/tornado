@@ -43,7 +43,7 @@ if PY3:
     basestring_type = str
 else:
     # The names unicode and basestring don't exist in py3 so silence flake8.
-    unicode_type = str  # noqa
+    unicode_type = unicode  # noqa
     basestring_type = basestring  # noqa
 
 
