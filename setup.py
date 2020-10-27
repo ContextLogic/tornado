@@ -1,4 +1,3 @@
-from builtins import str
 #!/usr/bin/env python
 #
 # Copyright 2009 Facebook
