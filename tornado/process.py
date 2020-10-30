@@ -348,7 +348,7 @@ def fork_processes_with_watchdog(
             for pid, _ in children.iteritems():
                 try:
                     _resp_pid, status = os.waitpid(pid, os.WNOHANG)
-                except OSError, e:
+                except OSError as e:
                     if e.errno == errno.EINTR:
                         continue
                     if e.errno != errno.ECHILD:
